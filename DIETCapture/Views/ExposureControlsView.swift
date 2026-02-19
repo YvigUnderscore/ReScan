@@ -254,14 +254,22 @@ struct LiDARControlsView: View {
                 )
                 
                 // Confidence
-                GlassSegmentedPicker(
-                    label: "Confidence",
-                    selection: Binding(
+                HStack {
+                    Text("Confidence")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Picker("Confidence", selection: Binding(
                         get: { viewModel.settings.confidenceThreshold },
                         set: { viewModel.updateConfidenceThreshold($0) }
-                    ),
-                    options: ConfidenceThreshold.allCases
-                )
+                    )) {
+                        ForEach(ConfidenceThreshold.allCases) { level in
+                            Text(level.label).tag(level)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(maxWidth: 200)
+                }
                 
                 // Smoothing
                 HStack {
@@ -359,11 +367,11 @@ struct GlassSlider: View {
             HStack {
                 Label(label, systemImage: icon)
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(isEnabled ? .secondary : .secondary.opacity(0.4))
+                    .foregroundStyle(isEnabled ? Color.secondary : Color.secondary.opacity(0.4))
                 Spacer()
                 Text(displayValue)
                     .font(.system(size: 12, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(isEnabled ? .cyan : .secondary.opacity(0.4))
+                    .foregroundStyle(isEnabled ? Color.cyan : Color.secondary.opacity(0.4))
             }
             
             Slider(value: $value, in: 0...1)
