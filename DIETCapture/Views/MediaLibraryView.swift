@@ -1,14 +1,17 @@
 // MediaLibraryView.swift
 // ReScan
 //
-// Browse recorded scan sessions, preview passes (RGB/Depth/Confidence).
+// Browse recorded scan sessions, preview passes, delete scans.
 
 import SwiftUI
 import AVKit
+import AVFoundation
 
 struct MediaLibraryView: View {
     @State private var sessions: [RecordedSession] = []
     @State private var selectedSession: RecordedSession?
+    @State private var sessionToDelete: RecordedSession?
+    @State private var showDeleteConfirmation = false
     
     var body: some View {
         NavigationStack {
@@ -21,9 +24,12 @@ struct MediaLibraryView: View {
                             emptyState
                         } else {
                             ForEach(sessions) { session in
-                                SessionCardView(session: session) {
+                                SessionCardView(session: session, onTap: {
                                     selectedSession = session
-                                }
+                                }, onDelete: {
+                                    sessionToDelete = session
+                                    showDeleteConfirmation = true
+                                })
                             }
                         }
                     }
@@ -34,11 +40,37 @@ struct MediaLibraryView: View {
             .navigationBarTitleDisplayMode(.large)
             .toolbarColorScheme(.dark, for: .navigationBar)
             .sheet(item: $selectedSession) { session in
-                SessionDetailView(session: session)
+                SessionDetailView(session: session, onDelete: {
+                    deleteSession(session)
+                    selectedSession = nil
+                })
+            }
+            .alert("Delete Scan?", isPresented: $showDeleteConfirmation) {
+                Button("Delete", role: .destructive) {
+                    if let session = sessionToDelete {
+                        deleteSession(session)
+                    }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This will permanently delete all data for \"\(sessionToDelete?.name ?? "")\".")
             }
         }
         .onAppear {
-            sessions = CaptureSession.listSessions()
+            refreshSessions()
+        }
+    }
+    
+    // MARK: - Methods
+    
+    private func refreshSessions() {
+        sessions = CaptureSession.listSessions()
+    }
+    
+    private func deleteSession(_ session: RecordedSession) {
+        CaptureSession.deleteSession(session)
+        withAnimation(.easeInOut(duration: 0.3)) {
+            sessions.removeAll { $0.id == session.id }
         }
     }
     
@@ -71,11 +103,14 @@ struct MediaLibraryView: View {
 struct SessionCardView: View {
     let session: RecordedSession
     let onTap: () -> Void
+    let onDelete: () -> Void
+    
+    @State private var thumbnail: UIImage?
     
     var body: some View {
         Button(action: onTap) {
             HStack(spacing: 14) {
-                // Thumbnail
+                // Thumbnail from first video frame
                 ZStack {
                     RoundedRectangle(cornerRadius: 10)
                         .fill(LinearGradient(
@@ -84,11 +119,19 @@ struct SessionCardView: View {
                         ))
                         .frame(width: 64, height: 64)
                     
-                    Image(systemName: "cube.transparent.fill")
-                        .font(.title2)
-                        .foregroundStyle(
-                            LinearGradient(colors: [.cyan, .blue], startPoint: .topLeading, endPoint: .bottomTrailing)
-                        )
+                    if let thumb = thumbnail {
+                        Image(uiImage: thumb)
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(width: 64, height: 64)
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                    } else {
+                        Image(systemName: "cube.transparent.fill")
+                            .font(.title2)
+                            .foregroundStyle(
+                                LinearGradient(colors: [.cyan, .blue], startPoint: .topLeading, endPoint: .bottomTrailing)
+                            )
+                    }
                 }
                 
                 VStack(alignment: .leading, spacing: 4) {
@@ -119,6 +162,42 @@ struct SessionCardView: View {
             .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
         }
         .buttonStyle(.plain)
+        .contextMenu {
+            Button(role: .destructive) {
+                onDelete()
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+        }
+        .swipeActions(edge: .trailing) {
+            Button(role: .destructive) {
+                onDelete()
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+        }
+        .task {
+            thumbnail = await generateThumbnail(for: session)
+        }
+    }
+    
+    // MARK: - Thumbnail Generation
+    
+    private func generateThumbnail(for session: RecordedSession) async -> UIImage? {
+        let videoURL = session.directory.appendingPathComponent("rgb.mp4")
+        guard FileManager.default.fileExists(atPath: videoURL.path) else { return nil }
+        
+        let asset = AVAsset(url: videoURL)
+        let generator = AVAssetImageGenerator(asset: asset)
+        generator.appliesPreferredTrackTransform = true
+        generator.maximumSize = CGSize(width: 128, height: 128)
+        
+        do {
+            let (image, _) = try await generator.image(at: .zero)
+            return UIImage(cgImage: image)
+        } catch {
+            return nil
+        }
     }
 }
 
@@ -126,10 +205,13 @@ struct SessionCardView: View {
 
 struct SessionDetailView: View {
     let session: RecordedSession
+    let onDelete: () -> Void
+    
     @State private var activePass: ViewMode = .rgb
     @State private var currentFrameIndex: Int = 0
     @State private var currentImage: UIImage?
     @State private var player: AVPlayer?
+    @State private var showDeleteAlert = false
     
     @Environment(\.dismiss) private var dismiss
     
@@ -196,10 +278,19 @@ struct SessionDetailView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        shareSession()
-                    } label: {
-                        Image(systemName: "square.and.arrow.up")
+                    HStack(spacing: 12) {
+                        Button {
+                            shareSession()
+                        } label: {
+                            Image(systemName: "square.and.arrow.up")
+                        }
+                        
+                        Button(role: .destructive) {
+                            showDeleteAlert = true
+                        } label: {
+                            Image(systemName: "trash")
+                                .foregroundStyle(.red)
+                        }
                     }
                 }
                 ToolbarItem(placement: .topBarLeading) {
@@ -207,6 +298,15 @@ struct SessionDetailView: View {
                 }
             }
             .toolbarColorScheme(.dark, for: .navigationBar)
+            .alert("Delete Scan?", isPresented: $showDeleteAlert) {
+                Button("Delete", role: .destructive) {
+                    onDelete()
+                    dismiss()
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This will permanently delete \"\(session.name)\" and all its data.")
+            }
         }
         .preferredColorScheme(.dark)
         .onAppear {
@@ -294,7 +394,6 @@ struct SessionDetailView: View {
         
         switch activePass {
         case .rgb:
-            // For RGB, we use the video player
             break
             
         case .depth:

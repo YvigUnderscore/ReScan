@@ -1,68 +1,164 @@
 // ExposureControlsView.swift
 // ReScan
 //
-// Shutter presets, ISO slider, EV slider, focus, LiDAR controls.
+// Frosted glass settings panels — Exposure, Focus, LiDAR controls.
 
 import SwiftUI
+
+// MARK: - Glass Settings Sheet
+
+struct GlassSettingsSheet: View {
+    @Bindable var cameraVM: CameraViewModel
+    @Bindable var lidarVM: LiDARViewModel
+    
+    @State private var activeSection: SettingsSection = .exposure
+    
+    enum SettingsSection: String, CaseIterable {
+        case exposure = "Exposure"
+        case focus = "Focus"
+        case lidar = "LiDAR"
+        
+        var icon: String {
+            switch self {
+            case .exposure: return "sun.max.fill"
+            case .focus: return "scope"
+            case .lidar: return "sensor.tag.radiowaves.forward.fill"
+            }
+        }
+    }
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            // Drag handle
+            Capsule()
+                .fill(.white.opacity(0.3))
+                .frame(width: 36, height: 5)
+                .padding(.top, 10)
+                .padding(.bottom, 14)
+            
+            // Section picker
+            HStack(spacing: 4) {
+                ForEach(SettingsSection.allCases, id: \.self) { section in
+                    Button {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            activeSection = section
+                        }
+                    } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: section.icon)
+                                .font(.system(size: 10))
+                            Text(section.rawValue)
+                                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(
+                            activeSection == section
+                                ? AnyShapeStyle(LinearGradient(
+                                    colors: [.cyan.opacity(0.5), .blue.opacity(0.4)],
+                                    startPoint: .topLeading, endPoint: .bottomTrailing
+                                  ))
+                                : AnyShapeStyle(Color.white.opacity(0.05))
+                        )
+                        .foregroundStyle(activeSection == section ? .white : .secondary)
+                        .clipShape(Capsule())
+                    }
+                }
+            }
+            .padding(.horizontal)
+            .padding(.bottom, 14)
+            
+            // Content
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(spacing: 14) {
+                    switch activeSection {
+                    case .exposure:
+                        ExposureControlsView(viewModel: cameraVM)
+                    case .focus:
+                        FocusControlsView(viewModel: cameraVM)
+                    case .lidar:
+                        LiDARControlsView(viewModel: lidarVM)
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 20)
+            }
+        }
+        .background(
+            ZStack {
+                // Glass effect background
+                RoundedRectangle(cornerRadius: 28)
+                    .fill(.ultraThinMaterial)
+                
+                // Subtle gradient overlay
+                RoundedRectangle(cornerRadius: 28)
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color.white.opacity(0.06),
+                                Color.clear,
+                                Color.cyan.opacity(0.03)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                
+                // Subtle border
+                RoundedRectangle(cornerRadius: 28)
+                    .strokeBorder(
+                        LinearGradient(
+                            colors: [.white.opacity(0.15), .white.opacity(0.05)],
+                            startPoint: .topLeading, endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 0.5
+                    )
+            }
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 28))
+        .preferredColorScheme(.dark)
+    }
+}
+
+// MARK: - Exposure Controls
 
 struct ExposureControlsView: View {
     @Bindable var viewModel: CameraViewModel
     
-    @State private var isExpanded = true
-    
     var body: some View {
-        ControlPanelView(title: "Exposure", icon: "sun.max.fill", isExpanded: $isExpanded) {
-            VStack(spacing: 12) {
-                // Exposure Mode
-                HStack {
-                    Text("Mode")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    Picker("Mode", selection: Binding(
+        GlassCard {
+            VStack(spacing: 14) {
+                // Mode Toggle
+                GlassSegmentedPicker(
+                    label: "Mode",
+                    selection: Binding(
                         get: { viewModel.settings.exposureMode },
                         set: { viewModel.setExposureMode($0) }
-                    )) {
-                        ForEach(ExposureMode.allCases) { mode in
-                            Text(mode.rawValue).tag(mode)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .frame(maxWidth: 220)
-                }
+                    ),
+                    options: ExposureMode.allCases
+                )
                 
-                // Shutter Speed Presets
+                // Shutter Presets (Manual only)
                 if viewModel.settings.exposureMode == .manual {
-                    VStack(alignment: .leading, spacing: 6) {
+                    VStack(alignment: .leading, spacing: 8) {
                         HStack {
-                            Text("Shutter")
-                                .font(.caption)
+                            Label("Shutter", systemImage: "timer")
+                                .font(.system(size: 12, weight: .medium))
                                 .foregroundStyle(.secondary)
                             Spacer()
                             Text(viewModel.shutterSpeedDisplay)
-                                .font(.system(.caption, design: .monospaced))
+                                .font(.system(size: 12, weight: .semibold, design: .monospaced))
                                 .foregroundStyle(.cyan)
                         }
                         
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 6) {
                                 ForEach(ShutterSpeedPreset.presets) { preset in
-                                    Button {
+                                    GlassPill(
+                                        label: preset.label,
+                                        isSelected: viewModel.selectedShutterPreset?.id == preset.id
+                                    ) {
                                         viewModel.setShutterPreset(preset)
-                                    } label: {
-                                        Text(preset.label)
-                                            .font(.system(size: 11, weight: .medium, design: .monospaced))
-                                            .padding(.horizontal, 10)
-                                            .padding(.vertical, 6)
-                                            .background(
-                                                viewModel.selectedShutterPreset?.id == preset.id
-                                                    ? AnyShapeStyle(LinearGradient(colors: [.cyan, .blue], startPoint: .leading, endPoint: .trailing))
-                                                    : AnyShapeStyle(Color.white.opacity(0.08))
-                                            )
-                                            .foregroundStyle(
-                                                viewModel.selectedShutterPreset?.id == preset.id ? .white : .secondary
-                                            )
-                                            .clipShape(Capsule())
                                     }
                                 }
                             }
@@ -71,8 +167,9 @@ struct ExposureControlsView: View {
                 }
                 
                 // ISO
-                ParameterSliderView(
+                GlassSlider(
                     label: "ISO",
+                    icon: "camera.aperture",
                     value: Binding(
                         get: { viewModel.isoSliderValue },
                         set: { viewModel.updateISO(sliderValue: $0) }
@@ -81,9 +178,10 @@ struct ExposureControlsView: View {
                     isEnabled: viewModel.settings.exposureMode == .manual
                 )
                 
-                // EV Compensation
-                ParameterSliderView(
+                // EV
+                GlassSlider(
                     label: "EV",
+                    icon: "plusminus",
                     value: Binding(
                         get: { viewModel.evSliderValue },
                         set: { viewModel.updateEV(sliderValue: $0) }
@@ -100,25 +198,22 @@ struct ExposureControlsView: View {
 
 struct FocusControlsView: View {
     @Bindable var viewModel: CameraViewModel
-    @State private var isExpanded = false
     
     var body: some View {
-        ControlPanelView(title: "Focus", icon: "scope", isExpanded: $isExpanded) {
-            VStack(spacing: 12) {
-                HStack {
-                    Picker("Focus", selection: Binding(
+        GlassCard {
+            VStack(spacing: 14) {
+                GlassSegmentedPicker(
+                    label: "Mode",
+                    selection: Binding(
                         get: { viewModel.settings.focusMode },
                         set: { viewModel.setFocusMode($0) }
-                    )) {
-                        ForEach(FocusMode.allCases) { mode in
-                            Text(mode.rawValue).tag(mode)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                }
+                    ),
+                    options: FocusMode.allCases
+                )
                 
-                ParameterSliderView(
+                GlassSlider(
                     label: "Position",
+                    icon: "target",
                     value: Binding(
                         get: { viewModel.focusSliderValue },
                         set: { viewModel.updateFocus(sliderValue: $0) }
@@ -135,52 +230,43 @@ struct FocusControlsView: View {
 
 struct LiDARControlsView: View {
     @Bindable var viewModel: LiDARViewModel
-    @State private var isExpanded = false
     
     var body: some View {
-        ControlPanelView(title: "LiDAR", icon: "sensor.tag.radiowaves.forward.fill", isExpanded: $isExpanded) {
-            VStack(spacing: 12) {
+        GlassCard {
+            VStack(spacing: 14) {
                 // Max Distance
-                HStack {
-                    Text("Max Dist")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Slider(
-                        value: Binding(
-                            get: { viewModel.settings.maxDistance },
-                            set: { viewModel.updateMaxDistance($0) }
-                        ),
-                        in: LiDARSettings.distanceRange,
-                        step: 0.1
-                    )
-                    .tint(.cyan)
-                    Text("\(viewModel.settings.maxDistance, specifier: "%.1f")m")
-                        .font(.system(.caption, design: .monospaced))
-                        .frame(width: 45, alignment: .trailing)
-                }
+                GlassSlider(
+                    label: "Max Dist",
+                    icon: "ruler",
+                    value: Binding(
+                        get: {
+                            let range = LiDARSettings.distanceRange
+                            return Float((viewModel.settings.maxDistance - range.lowerBound) / (range.upperBound - range.lowerBound))
+                        },
+                        set: {
+                            let range = LiDARSettings.distanceRange
+                            let dist = range.lowerBound + Float($0) * (range.upperBound - range.lowerBound)
+                            viewModel.updateMaxDistance(dist)
+                        }
+                    ),
+                    displayValue: "\(viewModel.settings.maxDistance.formatted(decimals: 1))m",
+                    isEnabled: true
+                )
                 
                 // Confidence
-                HStack {
-                    Text("Confid.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    Picker("Confidence", selection: Binding(
+                GlassSegmentedPicker(
+                    label: "Confidence",
+                    selection: Binding(
                         get: { viewModel.settings.confidenceThreshold },
                         set: { viewModel.updateConfidenceThreshold($0) }
-                    )) {
-                        ForEach(ConfidenceThreshold.allCases) { level in
-                            Text(level.label).tag(level)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .frame(maxWidth: 200)
-                }
+                    ),
+                    options: ConfidenceThreshold.allCases
+                )
                 
-                // Smooth
+                // Smoothing
                 HStack {
-                    Text("Smooth")
-                        .font(.caption)
+                    Label("Smoothing", systemImage: "waveform.path")
+                        .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(.secondary)
                     Spacer()
                     Toggle("", isOn: Binding(
@@ -191,80 +277,126 @@ struct LiDARControlsView: View {
                     .tint(.cyan)
                 }
                 
-                // Resolution info
+                // Resolution
                 HStack {
-                    Text("Resolution: \(viewModel.depthResolution)")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                    Label("Depth Res", systemImage: "square.resize")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary.opacity(0.7))
                     Spacer()
+                    Text(viewModel.depthResolution)
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(.secondary.opacity(0.5))
                 }
             }
         }
     }
 }
 
-// MARK: - Reusable ControlPanel
+// MARK: - Glass Components
 
-struct ControlPanelView<Content: View>: View {
-    let title: String
-    let icon: String
-    @Binding var isExpanded: Bool
+struct GlassCard<Content: View>: View {
     @ViewBuilder let content: Content
     
     var body: some View {
-        VStack(spacing: 8) {
-            Button {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    isExpanded.toggle()
+        content
+            .padding(16)
+            .background(
+                ZStack {
+                    RoundedRectangle(cornerRadius: 18)
+                        .fill(Color.white.opacity(0.04))
+                    RoundedRectangle(cornerRadius: 18)
+                        .strokeBorder(
+                            LinearGradient(
+                                colors: [.white.opacity(0.1), .white.opacity(0.03)],
+                                startPoint: .topLeading, endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 0.5
+                        )
                 }
-            } label: {
-                HStack {
-                    Image(systemName: icon)
-                        .font(.caption)
-                        .foregroundStyle(.cyan)
-                    Text(title)
-                        .font(.caption)
-                        .fontWeight(.semibold)
-                    Spacer()
-                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .buttonStyle(.plain)
-            
-            if isExpanded {
-                content
-                    .transition(.opacity.combined(with: .move(edge: .top)))
-            }
-        }
-        .padding(12)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14))
+            )
     }
 }
 
-// MARK: - Parameter Slider
-
-struct ParameterSliderView: View {
+struct GlassPill: View {
     let label: String
+    let isSelected: Bool
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            Text(label)
+                .font(.system(size: 11, weight: .medium, design: .monospaced))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+                .background(
+                    isSelected
+                        ? AnyShapeStyle(LinearGradient(
+                            colors: [.cyan.opacity(0.6), .blue.opacity(0.5)],
+                            startPoint: .topLeading, endPoint: .bottomTrailing
+                          ))
+                        : AnyShapeStyle(Color.white.opacity(0.06))
+                )
+                .foregroundStyle(isSelected ? .white : .secondary)
+                .clipShape(Capsule())
+                .overlay(
+                    isSelected
+                        ? Capsule().strokeBorder(.cyan.opacity(0.3), lineWidth: 0.5)
+                        : Capsule().strokeBorder(.white.opacity(0.06), lineWidth: 0.5)
+                )
+        }
+    }
+}
+
+struct GlassSlider: View {
+    let label: String
+    let icon: String
     @Binding var value: Float
     let displayValue: String
     var isEnabled: Bool = true
     
     var body: some View {
+        VStack(spacing: 6) {
+            HStack {
+                Label(label, systemImage: icon)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(isEnabled ? .secondary : .secondary.opacity(0.4))
+                Spacer()
+                Text(displayValue)
+                    .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(isEnabled ? .cyan : .secondary.opacity(0.4))
+            }
+            
+            Slider(value: $value, in: 0...1)
+                .tint(
+                    LinearGradient(
+                        colors: [.cyan.opacity(0.8), .blue.opacity(0.6)],
+                        startPoint: .leading, endPoint: .trailing
+                    )
+                )
+                .disabled(!isEnabled)
+                .opacity(isEnabled ? 1.0 : 0.35)
+        }
+    }
+}
+
+struct GlassSegmentedPicker<T: CaseIterable & Identifiable & Hashable & RawRepresentable>: View where T.RawValue == String {
+    let label: String
+    @Binding var selection: T
+    let options: [T]
+    
+    var body: some View {
         HStack {
             Text(label)
-                .font(.caption)
+                .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(.secondary)
-                .frame(width: 55, alignment: .leading)
-            Slider(value: $value, in: 0...1)
-                .tint(.cyan)
-                .disabled(!isEnabled)
-                .opacity(isEnabled ? 1.0 : 0.4)
-            Text(displayValue)
-                .font(.system(.caption, design: .monospaced))
-                .frame(width: 60, alignment: .trailing)
-                .foregroundStyle(isEnabled ? .primary : .secondary)
+            Spacer()
+            Picker(label, selection: $selection) {
+                ForEach(options, id: \.self) { option in
+                    Text(option.rawValue).tag(option)
+                }
+            }
+            .pickerStyle(.segmented)
+            .frame(maxWidth: 200)
         }
     }
 }

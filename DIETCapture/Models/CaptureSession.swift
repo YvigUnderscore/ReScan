@@ -154,6 +154,17 @@ final class CaptureSession {
         
         return sessions.sorted { $0.date > $1.date }
     }
+    
+    // MARK: - Delete Session
+    
+    static func deleteSession(_ session: RecordedSession) {
+        let fm = FileManager.default
+        do {
+            try fm.removeItem(at: session.directory)
+        } catch {
+            print("[CaptureSession] Failed to delete session: \(error)")
+        }
+    }
 }
 
 // MARK: - Date Extension

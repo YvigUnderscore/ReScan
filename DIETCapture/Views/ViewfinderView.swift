@@ -69,20 +69,6 @@ struct ViewfinderView: View {
                 .padding(.vertical, 4)
                 .frame(maxHeight: .infinity)
                 
-                // MARK: - Collapsible Controls
-                if showControls {
-                    ScrollView(.vertical, showsIndicators: false) {
-                        VStack(spacing: 8) {
-                            ExposureControlsView(viewModel: viewModel.camera)
-                            FocusControlsView(viewModel: viewModel.camera)
-                            LiDARControlsView(viewModel: viewModel.lidar)
-                        }
-                        .padding(.horizontal, 8)
-                    }
-                    .frame(maxHeight: 260)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                }
-                
                 // MARK: - Bottom Bar
                 captureControls
                     .padding(.bottom, 4)
@@ -96,6 +82,12 @@ struct ViewfinderView: View {
         .onDisappear {
             viewModel.teardown()
             refreshTimer?.invalidate()
+        }
+        .sheet(isPresented: $showControls) {
+            GlassSettingsSheet(cameraVM: viewModel.camera, lidarVM: viewModel.lidar)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.hidden)
+                .presentationBackground(.clear)
         }
         .alert("Notice", isPresented: $viewModel.showError) {
             Button("OK") { viewModel.showError = false }
@@ -231,23 +223,23 @@ struct ViewfinderView: View {
     
     private func updatePreview() {
         if viewModel.lidar.viewMode == .rgb {
-            // Show ARKit captured image
+            // Show ARKit captured image — landscape buffer, rotate to portrait
             if let buffer = viewModel.lidar.currentCapturedImage {
-                previewImage = imageFromPixelBuffer(buffer)
+                previewImage = imageFromPixelBuffer(buffer, orientation: .right)
             }
         } else {
-            // Show depth/confidence overlay
+            // Show depth/confidence overlay — also landscape buffer, same rotation
             if let buffer = viewModel.lidar.generateViewBuffer() {
-                previewImage = imageFromPixelBuffer(buffer)
+                previewImage = imageFromPixelBuffer(buffer, orientation: .right)
             }
         }
     }
     
-    private func imageFromPixelBuffer(_ buffer: CVPixelBuffer) -> UIImage? {
+    private func imageFromPixelBuffer(_ buffer: CVPixelBuffer, orientation: UIImage.Orientation = .right) -> UIImage? {
         let ciImage = CIImage(cvPixelBuffer: buffer)
         let context = CIContext()
         guard let cgImage = context.createCGImage(ciImage, from: ciImage.extent) else { return nil }
-        return UIImage(cgImage: cgImage, scale: 1.0, orientation: .right)
+        return UIImage(cgImage: cgImage, scale: 1.0, orientation: orientation)
     }
     
     // MARK: - Haptic

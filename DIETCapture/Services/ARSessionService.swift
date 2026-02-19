@@ -50,6 +50,17 @@ final class ARSessionService: NSObject {
         
         let config = ARWorldTrackingConfiguration()
         
+        // Select highest resolution video format (near-4K on Pro devices)
+        let formats = ARWorldTrackingConfiguration.supportedVideoFormats
+        if let bestFormat = formats.max(by: {
+            let a = $0.imageResolution
+            let b = $1.imageResolution
+            return (a.width * a.height) < (b.width * b.height)
+        }) {
+            config.videoFormat = bestFormat
+            print("[ARSessionService] Selected video format: \(bestFormat.imageResolution)")
+        }
+        
         // Scene depth (LiDAR)
         if ARWorldTrackingConfiguration.supportsFrameSemantics(.sceneDepth) {
             config.frameSemantics.insert(.sceneDepth)
