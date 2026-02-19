@@ -1,12 +1,12 @@
-// DIETCaptureApp.swift
-// DIETCapture
+// ReScanApp.swift
+// ReScan
 //
 // App entry point.
 
 import SwiftUI
 
 @main
-struct DIETCaptureApp: App {
+struct ReScanApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()

@@ -1,7 +1,7 @@
 // CaptureModels.swift
-// DIETCapture
+// ReScan
 //
-// Core data models, enums, and settings structs for the capture app.
+// Core data models, enums, and settings structs.
 
 import Foundation
 import AVFoundation
@@ -54,55 +54,11 @@ enum WhiteBalanceMode: String, CaseIterable, Identifiable {
 }
 
 struct WhiteBalanceValues {
-    var temperature: Float = 5500.0  // Kelvin
+    var temperature: Float = 5500.0
     var tint: Float = 0.0
     
     static let temperatureRange: ClosedRange<Float> = 2000...10000
     static let tintRange: ClosedRange<Float> = -150...150
-}
-
-// MARK: - Capture Format
-
-enum PhotoFormat: String, CaseIterable, Identifiable {
-    case heif = "HEIF"
-    case jpeg = "JPEG"
-    case proRAW = "ProRAW (DNG)"
-    
-    var id: String { rawValue }
-}
-
-enum VideoCodec: String, CaseIterable, Identifiable {
-    case hevc = "HEVC (H.265)"
-    case prores422 = "ProRes 422"
-    case prores422HQ = "ProRes 422 HQ"
-    
-    var id: String { rawValue }
-    
-    var avCodecType: AVVideoCodecType {
-        switch self {
-        case .hevc: return .hevc
-        case .prores422: return .proRes422
-        case .prores422HQ: return .proRes422HQ
-        }
-    }
-}
-
-// MARK: - Depth Export
-
-enum DepthExportFormat: String, CaseIterable, Identifiable {
-    case exr = "EXR (32-bit float)"
-    case png16 = "PNG (16-bit mm)"
-    case tiff32 = "TIFF (32-bit float)"
-    
-    var id: String { rawValue }
-    
-    var fileExtension: String {
-        switch self {
-        case .exr: return "exr"
-        case .png16: return "png"
-        case .tiff32: return "tiff"
-        }
-    }
 }
 
 // MARK: - Confidence
@@ -117,21 +73,28 @@ enum ConfidenceThreshold: Int, CaseIterable, Identifiable {
     var label: String {
         switch self {
         case .low: return "Low"
-        case .medium: return "Medium"
+        case .medium: return "Med"
         case .high: return "High"
         }
     }
 }
 
-// MARK: - Depth Overlay
+// MARK: - View Mode (Pass Viewer)
 
-enum DepthOverlayMode: String, CaseIterable, Identifiable {
-    case none = "None"
+enum ViewMode: String, CaseIterable, Identifiable {
+    case rgb = "RGB"
     case depth = "Depth"
-    case confidence = "Confidence"
-    case mesh = "Mesh"
+    case confidence = "Conf"
     
     var id: String { rawValue }
+    
+    var icon: String {
+        switch self {
+        case .rgb: return "camera.fill"
+        case .depth: return "cube.fill"
+        case .confidence: return "checkmark.shield.fill"
+        }
+    }
 }
 
 // MARK: - Lens Selection
@@ -162,64 +125,45 @@ enum LensType: String, CaseIterable, Identifiable {
     }
 }
 
-// MARK: - Resolution Preset
+// MARK: - Shutter Speed Presets
 
-struct ResolutionPreset: Identifiable, Hashable {
-    let id = UUID()
+struct ShutterSpeedPreset: Identifiable {
     let label: String
-    let width: Int
-    let height: Int
-    let format: AVCaptureDevice.Format?
+    let time: CMTime
     
-    static func == (lhs: ResolutionPreset, rhs: ResolutionPreset) -> Bool {
-        lhs.id == rhs.id
-    }
+    var id: String { label }
     
-    func hash(into hasher: inout Hasher) {
-        hasher.combine(id)
-    }
-}
-
-// MARK: - Framerate Preset
-
-struct FrameratePreset: Identifiable, Hashable {
-    let fps: Double
-    
-    var id: Double { fps }
-    var label: String { "\(Int(fps)) fps" }
-    
-    static let common: [FrameratePreset] = [
-        .init(fps: 24), .init(fps: 25), .init(fps: 30),
-        .init(fps: 60), .init(fps: 120), .init(fps: 240)
+    static let presets: [ShutterSpeedPreset] = [
+        .init(label: "1/8000", time: CMTimeMake(value: 1, timescale: 8000)),
+        .init(label: "1/4000", time: CMTimeMake(value: 1, timescale: 4000)),
+        .init(label: "1/2000", time: CMTimeMake(value: 1, timescale: 2000)),
+        .init(label: "1/1000", time: CMTimeMake(value: 1, timescale: 1000)),
+        .init(label: "1/500",  time: CMTimeMake(value: 1, timescale: 500)),
+        .init(label: "1/250",  time: CMTimeMake(value: 1, timescale: 250)),
+        .init(label: "1/125",  time: CMTimeMake(value: 1, timescale: 125)),
+        .init(label: "1/60",   time: CMTimeMake(value: 1, timescale: 60)),
+        .init(label: "1/30",   time: CMTimeMake(value: 1, timescale: 30)),
+        .init(label: "1/15",   time: CMTimeMake(value: 1, timescale: 15)),
+        .init(label: "1/8",    time: CMTimeMake(value: 1, timescale: 8)),
+        .init(label: "1/4",    time: CMTimeMake(value: 1, timescale: 4)),
+        .init(label: "1/3",    time: CMTimeMake(value: 1, timescale: 3)),
     ]
 }
 
 // MARK: - Camera Settings
 
 struct CameraSettings {
-    // Exposure
     var exposureMode: ExposureMode = .auto
     var shutterSpeed: CMTime = CMTimeMake(value: 1, timescale: 60)
     var iso: Float = 100.0
     var exposureCompensation: Float = 0.0
     
-    // Focus
     var focusMode: FocusMode = .autoContinuous
-    var manualFocusPosition: Float = 0.5  // 0.0 - 1.0
+    var manualFocusPosition: Float = 0.5
     
-    // White Balance
     var whiteBalanceMode: WhiteBalanceMode = .auto
     var whiteBalance: WhiteBalanceValues = .init()
     
-    // Format
-    var photoFormat: PhotoFormat = .heif
-    var videoCodec: VideoCodec = .hevc
-    var depthExportFormat: DepthExportFormat = .png16
-    
-    // Framerate
-    var targetFramerate: Double = 30.0
-    
-    // Zoom
     var zoomFactor: CGFloat = 1.0
     var selectedLens: LensType = .wide
 }
@@ -227,13 +171,9 @@ struct CameraSettings {
 // MARK: - LiDAR Settings
 
 struct LiDARSettings {
-    var maxDistance: Float = 5.0          // meters
+    var maxDistance: Float = 5.0
     var confidenceThreshold: ConfidenceThreshold = .medium
     var smoothingEnabled: Bool = true
-    var overlayMode: DepthOverlayMode = .none
-    var overlayOpacity: Float = 0.5       // 0.0 - 1.0
-    var exportPointClouds: Bool = true
-    var exportMesh: Bool = false
     
     static let distanceRange: ClosedRange<Float> = 0.5...5.0
 }
@@ -243,10 +183,6 @@ struct LiDARSettings {
 struct SessionSettings {
     var camera: CameraSettings = .init()
     var lidar: LiDARSettings = .init()
-    var exportCOLMAP: Bool = true
-    var exportIntrinsics: Bool = true
-    var exportPoses: Bool = true
-    var geotagging: Bool = false
 }
 
 // MARK: - Capture Frame Metadata
@@ -254,32 +190,12 @@ struct SessionSettings {
 struct CaptureFrameMetadata: Codable {
     let frameIndex: Int
     let timestamp: Double
-    let cameraPose: [[Float]]        // 4x4 matrix
-    let cameraIntrinsics: [[Float]]  // 3x3 matrix
+    let cameraPose: [[Float]]
+    let cameraIntrinsics: [[Float]]
     let exposureDuration: Double
     let iso: Float
     let lensPosition: Float
     let trackingState: String
-}
-
-// MARK: - Shutter Speed Presets
-
-struct ShutterSpeedPreset {
-    static let presets: [(label: String, time: CMTime)] = [
-        ("1/8000", CMTimeMake(value: 1, timescale: 8000)),
-        ("1/4000", CMTimeMake(value: 1, timescale: 4000)),
-        ("1/2000", CMTimeMake(value: 1, timescale: 2000)),
-        ("1/1000", CMTimeMake(value: 1, timescale: 1000)),
-        ("1/500",  CMTimeMake(value: 1, timescale: 500)),
-        ("1/250",  CMTimeMake(value: 1, timescale: 250)),
-        ("1/125",  CMTimeMake(value: 1, timescale: 125)),
-        ("1/60",   CMTimeMake(value: 1, timescale: 60)),
-        ("1/30",   CMTimeMake(value: 1, timescale: 30)),
-        ("1/15",   CMTimeMake(value: 1, timescale: 15)),
-        ("1/8",    CMTimeMake(value: 1, timescale: 8)),
-        ("1/4",    CMTimeMake(value: 1, timescale: 4)),
-        ("1/3",    CMTimeMake(value: 1, timescale: 3)),
-    ]
 }
 
 // MARK: - Thermal State
@@ -304,4 +220,21 @@ extension ProcessInfo.ThermalState {
         @unknown default: return "gray"
         }
     }
+}
+
+// MARK: - Recorded Session (for Media Library)
+
+struct RecordedSession: Identifiable, Hashable {
+    let id: String
+    let name: String
+    let date: Date
+    let directory: URL
+    let frameCount: Int
+    let hasDepth: Bool
+    let hasConfidence: Bool
+    let hasVideo: Bool
+    let thumbnailURL: URL?
+    
+    func hash(into hasher: inout Hasher) { hasher.combine(id) }
+    static func == (lhs: RecordedSession, rhs: RecordedSession) -> Bool { lhs.id == rhs.id }
 }

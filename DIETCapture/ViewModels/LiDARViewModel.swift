@@ -1,7 +1,7 @@
 // LiDARViewModel.swift
-// DIETCapture
+// ReScan
 //
-// Observable ViewModel binding LiDAR controls to ARSessionService.
+// Observable ViewModel for LiDAR controls and pass viewer.
 
 import Foundation
 import ARKit
@@ -16,6 +16,10 @@ final class LiDARViewModel {
     // MARK: - Settings
     
     var settings = LiDARSettings()
+    
+    // MARK: - View Mode (Pass Viewer)
+    
+    var viewMode: ViewMode = .rgb
     
     // MARK: - State
     
@@ -60,14 +64,6 @@ final class LiDARViewModel {
         )
     }
     
-    func setOverlayMode(_ mode: DepthOverlayMode) {
-        settings.overlayMode = mode
-    }
-    
-    func setOverlayOpacity(_ opacity: Float) {
-        settings.overlayOpacity = opacity
-    }
-    
     // MARK: - Depth Data Access
     
     var currentDepthMap: CVPixelBuffer? {
@@ -79,6 +75,10 @@ final class LiDARViewModel {
     
     var currentConfidenceMap: CVPixelBuffer? {
         arService.currentConfidenceMap
+    }
+    
+    var currentCapturedImage: CVPixelBuffer? {
+        arService.currentCapturedImage
     }
     
     var currentPose: simd_float4x4 {
@@ -93,12 +93,12 @@ final class LiDARViewModel {
         arService.meshAnchors
     }
     
-    // MARK: - Depth Overlay Image
+    // MARK: - Pass Viewer Buffer
     
-    func generateOverlayBuffer() -> CVPixelBuffer? {
-        switch settings.overlayMode {
-        case .none:
-            return nil
+    func generateViewBuffer() -> CVPixelBuffer? {
+        switch viewMode {
+        case .rgb:
+            return nil  // Use ARKit captured image directly
             
         case .depth:
             guard let depth = currentDepthMap else { return nil }
@@ -108,19 +108,15 @@ final class LiDARViewModel {
                 depthMap: depthCopy,
                 minDepth: 0.0,
                 maxDepth: settings.maxDistance,
-                opacity: settings.overlayOpacity
+                opacity: 1.0
             )
             
         case .confidence:
             guard let confidence = currentConfidenceMap else { return nil }
             return DepthMapProcessor.confidenceToColormapRGBA(
                 confidenceMap: confidence,
-                opacity: settings.overlayOpacity
+                opacity: 1.0
             )
-            
-        case .mesh:
-            // Mesh wireframe overlay requires Metal rendering, skip for now
-            return nil
         }
     }
 }

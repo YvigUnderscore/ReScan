@@ -1,11 +1,10 @@
 // CameraViewModel.swift
-// DIETCapture
+// ReScan
 //
-// Observable ViewModel binding camera controls to CameraService.
+// Observable ViewModel for camera manual controls.
 
 import Foundation
 import AVFoundation
-import Combine
 import CoreMedia
 
 @Observable
@@ -32,11 +31,13 @@ final class CameraViewModel {
     
     // MARK: - Slider Values (normalized 0-1)
     
-    var shutterSliderValue: Float = 0.5
     var isoSliderValue: Float = 0.5
     var evSliderValue: Float = 0.5
     var focusSliderValue: Float = 0.5
-    var zoomSliderValue: Float = 0.0
+    
+    // MARK: - Selected Shutter Preset
+    
+    var selectedShutterPreset: ShutterSpeedPreset? = nil
     
     // MARK: - Display Values
     
@@ -60,18 +61,14 @@ final class CameraViewModel {
         return settings.focusMode.rawValue
     }
     
-    var zoomDisplay: String {
-        "\(settings.zoomFactor.formatted(decimals: 1))x"
-    }
-    
     // MARK: - Setup
     
-    func setup() {
-        cameraService.setupSession(preferredLens: settings.selectedLens)
+    func setup(device: AVCaptureDevice?) {
+        cameraService.attachToDevice(device)
     }
     
     func teardown() {
-        cameraService.stopSession()
+        // Nothing to tear down — ARKit owns the session
     }
     
     // MARK: - Exposure
@@ -81,18 +78,13 @@ final class CameraViewModel {
         cameraService.setExposureMode(mode)
     }
     
-    func updateShutterSpeed(sliderValue: Float) {
-        shutterSliderValue = sliderValue
-        let speed = CMTime.shutterSpeedFromSlider(
-            value: sliderValue,
-            min: cameraService.minShutterSpeed,
-            max: cameraService.maxShutterSpeed
-        )
-        settings.shutterSpeed = speed
+    func setShutterPreset(_ preset: ShutterSpeedPreset) {
+        selectedShutterPreset = preset
+        settings.shutterSpeed = preset.time
         
         if settings.exposureMode == .manual {
             cameraService.setManualExposure(
-                shutterSpeed: speed,
+                shutterSpeed: preset.time,
                 iso: settings.iso
             )
         }
@@ -131,7 +123,7 @@ final class CameraViewModel {
         focusSliderValue = sliderValue
         settings.manualFocusPosition = sliderValue
         if settings.focusMode == .manual {
-            cameraService.setManualFocus(position: sliderValue)
+            cameraService.setFocusMode(.manual, lensPosition: sliderValue)
         }
     }
     
@@ -156,45 +148,6 @@ final class CameraViewModel {
         if settings.whiteBalanceMode == .manual {
             cameraService.setManualWhiteBalance(temperature: temperature, tint: tint)
         }
-    }
-    
-    // MARK: - Lens / Zoom
-    
-    func selectLens(_ lens: LensType) {
-        guard capabilities.availableLenses.contains(lens) else { return }
-        settings.selectedLens = lens
-        cameraService.switchLens(lens)
-    }
-    
-    func updateZoom(factor: CGFloat) {
-        settings.zoomFactor = factor
-        cameraService.setZoom(factor)
-    }
-    
-    // MARK: - Format Configuration
-    
-    func setFrameRate(_ fps: Double) {
-        settings.targetFramerate = fps
-        cameraService.setFrameRate(fps)
-    }
-    
-    func setResolution(_ preset: ResolutionPreset) {
-        guard let format = preset.format else { return }
-        cameraService.setFormat(format)
-    }
-    
-    // MARK: - Capture
-    
-    func capturePhoto() {
-        cameraService.capturePhoto(format: settings.photoFormat)
-    }
-    
-    func startRecording(to url: URL) {
-        cameraService.startRecording(to: url, codec: settings.videoCodec)
-    }
-    
-    func stopRecording() {
-        cameraService.stopRecording()
     }
 }
 

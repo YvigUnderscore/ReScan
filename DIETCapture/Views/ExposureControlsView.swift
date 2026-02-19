@@ -1,7 +1,7 @@
 // ExposureControlsView.swift
-// DIETCapture
+// ReScan
 //
-// Shutter speed, ISO, EV sliders and exposure mode selector.
+// Shutter presets, ISO slider, EV slider, focus, LiDAR controls.
 
 import SwiftUI
 
@@ -11,7 +11,7 @@ struct ExposureControlsView: View {
     @State private var isExpanded = true
     
     var body: some View {
-        ControlPanelView(title: "Exposition", icon: "sun.max.fill", isExpanded: $isExpanded) {
+        ControlPanelView(title: "Exposure", icon: "sun.max.fill", isExpanded: $isExpanded) {
             VStack(spacing: 12) {
                 // Exposure Mode
                 HStack {
@@ -31,16 +31,44 @@ struct ExposureControlsView: View {
                     .frame(maxWidth: 220)
                 }
                 
-                // Shutter Speed
-                ParameterSliderView(
-                    label: "Shutter",
-                    value: Binding(
-                        get: { viewModel.shutterSliderValue },
-                        set: { viewModel.updateShutterSpeed(sliderValue: $0) }
-                    ),
-                    displayValue: viewModel.shutterSpeedDisplay,
-                    isEnabled: viewModel.settings.exposureMode == .manual
-                )
+                // Shutter Speed Presets
+                if viewModel.settings.exposureMode == .manual {
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Text("Shutter")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Text(viewModel.shutterSpeedDisplay)
+                                .font(.system(.caption, design: .monospaced))
+                                .foregroundStyle(.cyan)
+                        }
+                        
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 6) {
+                                ForEach(ShutterSpeedPreset.presets) { preset in
+                                    Button {
+                                        viewModel.setShutterPreset(preset)
+                                    } label: {
+                                        Text(preset.label)
+                                            .font(.system(size: 11, weight: .medium, design: .monospaced))
+                                            .padding(.horizontal, 10)
+                                            .padding(.vertical, 6)
+                                            .background(
+                                                viewModel.selectedShutterPreset?.id == preset.id
+                                                    ? AnyShapeStyle(LinearGradient(colors: [.cyan, .blue], startPoint: .leading, endPoint: .trailing))
+                                                    : AnyShapeStyle(Color.white.opacity(0.08))
+                                            )
+                                            .foregroundStyle(
+                                                viewModel.selectedShutterPreset?.id == preset.id ? .white : .secondary
+                                            )
+                                            .clipShape(Capsule())
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
                 
                 // ISO
                 ParameterSliderView(
@@ -72,13 +100,11 @@ struct ExposureControlsView: View {
 
 struct FocusControlsView: View {
     @Bindable var viewModel: CameraViewModel
-    
-    @State private var isExpanded = true
+    @State private var isExpanded = false
     
     var body: some View {
         ControlPanelView(title: "Focus", icon: "scope", isExpanded: $isExpanded) {
             VStack(spacing: 12) {
-                // Focus Mode
                 HStack {
                     Picker("Focus", selection: Binding(
                         get: { viewModel.settings.focusMode },
@@ -91,7 +117,6 @@ struct FocusControlsView: View {
                     .pickerStyle(.segmented)
                 }
                 
-                // Manual Focus Slider
                 ParameterSliderView(
                     label: "Position",
                     value: Binding(
@@ -110,8 +135,7 @@ struct FocusControlsView: View {
 
 struct LiDARControlsView: View {
     @Bindable var viewModel: LiDARViewModel
-    
-    @State private var isExpanded = true
+    @State private var isExpanded = false
     
     var body: some View {
         ControlPanelView(title: "LiDAR", icon: "sensor.tag.radiowaves.forward.fill", isExpanded: $isExpanded) {
@@ -121,7 +145,6 @@ struct LiDARControlsView: View {
                     Text("Max Dist")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    
                     Slider(
                         value: Binding(
                             get: { viewModel.settings.maxDistance },
@@ -131,13 +154,12 @@ struct LiDARControlsView: View {
                         step: 0.1
                     )
                     .tint(.cyan)
-                    
                     Text("\(viewModel.settings.maxDistance, specifier: "%.1f")m")
                         .font(.system(.caption, design: .monospaced))
                         .frame(width: 45, alignment: .trailing)
                 }
                 
-                // Confidence Threshold
+                // Confidence
                 HStack {
                     Text("Confid.")
                         .font(.caption)
@@ -155,7 +177,7 @@ struct LiDARControlsView: View {
                     .frame(maxWidth: 200)
                 }
                 
-                // Smooth Depth Toggle
+                // Smooth
                 HStack {
                     Text("Smooth")
                         .font(.caption)
@@ -169,48 +191,7 @@ struct LiDARControlsView: View {
                     .tint(.cyan)
                 }
                 
-                // Overlay Mode
-                HStack {
-                    Text("Overlay")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    Picker("Overlay", selection: Binding(
-                        get: { viewModel.settings.overlayMode },
-                        set: { viewModel.setOverlayMode($0) }
-                    )) {
-                        ForEach(DepthOverlayMode.allCases) { mode in
-                            Text(mode.rawValue).tag(mode)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .frame(maxWidth: 250)
-                }
-                
-                // Overlay Opacity (only if overlay is active)
-                if viewModel.settings.overlayMode != .none {
-                    HStack {
-                        Text("Opacity")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        
-                        Slider(
-                            value: Binding(
-                                get: { viewModel.settings.overlayOpacity },
-                                set: { viewModel.setOverlayOpacity($0) }
-                            ),
-                            in: 0...1,
-                            step: 0.05
-                        )
-                        .tint(.cyan)
-                        
-                        Text("\(Int(viewModel.settings.overlayOpacity * 100))%")
-                            .font(.system(.caption, design: .monospaced))
-                            .frame(width: 40, alignment: .trailing)
-                    }
-                }
-                
-                // Depth Info
+                // Resolution info
                 HStack {
                     Text("Resolution: \(viewModel.depthResolution)")
                         .font(.caption2)
@@ -222,49 +203,7 @@ struct LiDARControlsView: View {
     }
 }
 
-// MARK: - Lens Selector
-
-struct LensSelectorView: View {
-    @Bindable var viewModel: CameraViewModel
-    
-    var body: some View {
-        HStack(spacing: 8) {
-            ForEach(viewModel.capabilities.availableLenses) { lens in
-                Button {
-                    viewModel.selectLens(lens)
-                } label: {
-                    Text(lens.rawValue)
-                        .font(.system(.caption, design: .rounded, weight: .semibold))
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 8)
-                        .background(
-                            viewModel.settings.selectedLens == lens
-                            ? AnyShapeStyle(.white)
-                            : AnyShapeStyle(.ultraThinMaterial)
-                        )
-                        .foregroundStyle(
-                            viewModel.settings.selectedLens == lens ? .black : .white
-                        )
-                        .clipShape(Capsule())
-                }
-            }
-            
-            Spacer()
-            
-            // Zoom indicator
-            HStack(spacing: 4) {
-                Image(systemName: "magnifyingglass")
-                    .font(.caption2)
-                Text(viewModel.zoomDisplay)
-                    .font(.system(.caption, design: .monospaced))
-            }
-            .foregroundStyle(.secondary)
-        }
-        .padding(.horizontal)
-    }
-}
-
-// MARK: - Reusable Components
+// MARK: - Reusable ControlPanel
 
 struct ControlPanelView<Content: View>: View {
     let title: String
@@ -274,7 +213,6 @@ struct ControlPanelView<Content: View>: View {
     
     var body: some View {
         VStack(spacing: 8) {
-            // Header
             Button {
                 withAnimation(.easeInOut(duration: 0.2)) {
                     isExpanded.toggle()
@@ -295,16 +233,17 @@ struct ControlPanelView<Content: View>: View {
             }
             .buttonStyle(.plain)
             
-            // Content
             if isExpanded {
                 content
                     .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
         .padding(12)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14))
     }
 }
+
+// MARK: - Parameter Slider
 
 struct ParameterSliderView: View {
     let label: String
@@ -318,12 +257,10 @@ struct ParameterSliderView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .frame(width: 55, alignment: .leading)
-            
             Slider(value: $value, in: 0...1)
                 .tint(.cyan)
                 .disabled(!isEnabled)
                 .opacity(isEnabled ? 1.0 : 0.4)
-            
             Text(displayValue)
                 .font(.system(.caption, design: .monospaced))
                 .frame(width: 60, alignment: .trailing)

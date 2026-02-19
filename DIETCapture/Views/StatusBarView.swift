@@ -1,5 +1,5 @@
 // StatusBarView.swift
-// DIETCapture
+// ReScan
 //
 // Top overlay bar: tracking state, recording indicator, battery, storage, thermal.
 
@@ -16,15 +16,14 @@ struct StatusBarView: View {
     let thermalState: ProcessInfo.ThermalState
     
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 10) {
             // Tracking State
             HStack(spacing: 4) {
                 Circle()
                     .fill(Color.fromString(trackingColor))
-                    .frame(width: 8, height: 8)
+                    .frame(width: 7, height: 7)
                 Text(trackingState)
-                    .font(.caption2)
-                    .fontWeight(.medium)
+                    .font(.system(size: 10, weight: .medium, design: .rounded))
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
@@ -34,56 +33,53 @@ struct StatusBarView: View {
             
             // Recording Indicator
             if isRecording {
-                HStack(spacing: 6) {
+                HStack(spacing: 5) {
                     Circle()
                         .fill(.red)
-                        .frame(width: 10, height: 10)
-                        .opacity(pulsingOpacity)
+                        .frame(width: 8, height: 8)
+                        .shadow(color: .red.opacity(0.6), radius: 4)
                     
                     Text(elapsedTime)
-                        .font(.system(.caption, design: .monospaced))
-                        .fontWeight(.bold)
+                        .font(.system(size: 11, weight: .bold, design: .monospaced))
                         .foregroundStyle(.red)
                     
                     Text("•")
                         .foregroundStyle(.secondary)
-                    
-                    Text("\(frameCount) frames")
                         .font(.caption2)
+                    
+                    Text("\(frameCount)f")
+                        .font(.system(size: 10, design: .monospaced))
                         .foregroundStyle(.secondary)
                 }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 5)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
                 .background(.ultraThinMaterial, in: Capsule())
             }
             
             Spacer()
             
             // System Status
-            HStack(spacing: 10) {
-                // Thermal
+            HStack(spacing: 8) {
                 if thermalState != .nominal {
                     Image(systemName: "thermometer.high")
-                        .font(.caption)
+                        .font(.caption2)
                         .foregroundStyle(thermalColor)
                 }
                 
-                // Storage  
                 HStack(spacing: 2) {
                     Image(systemName: "internaldrive")
-                        .font(.caption2)
+                        .font(.system(size: 8))
                     Text(storageMB.storageString)
-                        .font(.caption2)
+                        .font(.system(size: 9, design: .monospaced))
                 }
                 .foregroundStyle(storageMB < 1024 ? .red : .secondary)
                 
-                // Battery
                 HStack(spacing: 2) {
                     Image(systemName: batteryIcon)
-                        .font(.caption2)
+                        .font(.system(size: 8))
                     if batteryPercent >= 0 {
                         Text("\(batteryPercent)%")
-                            .font(.caption2)
+                            .font(.system(size: 9, design: .monospaced))
                     }
                 }
                 .foregroundStyle(batteryPercent < 20 ? .red : .secondary)
@@ -94,10 +90,6 @@ struct StatusBarView: View {
         }
         .padding(.horizontal)
     }
-    
-    // MARK: - Computed
-    
-    @State private var pulsingOpacity: Double = 1.0
     
     private var thermalColor: Color {
         switch thermalState {

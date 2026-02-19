@@ -1,16 +1,16 @@
 // ViewfinderView.swift
-// DIETCapture
+// ReScan
 //
-// Main capture screen: camera preview, depth overlay, controls, and capture buttons.
+// Main capture screen: ARKit preview, pass viewer, collapsible controls, record button.
 
 import SwiftUI
 
 struct ViewfinderView: View {
     @Bindable var viewModel: CaptureViewModel
     
-    @State private var showSettings = false
-    @State private var overlayBuffer: CVPixelBuffer?
-    @State private var depthRefreshTimer: Timer?
+    @State private var showControls = false
+    @State private var previewImage: UIImage?
+    @State private var refreshTimer: Timer?
     
     var body: some View {
         ZStack {
@@ -29,83 +29,73 @@ struct ViewfinderView: View {
                     storageMB: viewModel.storageAvailableMB,
                     thermalState: viewModel.thermalState
                 )
-                .padding(.top, 8)
+                .padding(.top, 4)
                 
-                // MARK: - Viewfinder
+                // MARK: - Viewfinder with Pass Viewer
                 ZStack {
-                    // Camera Preview
-                    CameraPreviewView(cameraService: viewModel.camera.cameraService)
-                        .clipShape(RoundedRectangle(cornerRadius: 16))
-                    
-                    // Depth/Confidence Overlay
-                    if viewModel.lidar.settings.overlayMode != .none {
-                        DepthOverlayImageView(pixelBuffer: overlayBuffer)
-                            .clipShape(RoundedRectangle(cornerRadius: 16))
-                            .allowsHitTesting(false)
+                    // Live Preview (from ARKit)
+                    if let image = previewImage {
+                        Image(uiImage: image)
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .clipShape(RoundedRectangle(cornerRadius: 20))
+                    } else {
+                        RoundedRectangle(cornerRadius: 20)
+                            .fill(Color(white: 0.1))
+                            .overlay {
+                                ProgressView()
+                                    .tint(.cyan)
+                            }
                     }
                     
-                    // Depth info overlay
-                    if viewModel.lidar.settings.overlayMode != .none {
-                        VStack {
+                    // Pass viewer buttons (top-right)
+                    VStack {
+                        HStack {
                             Spacer()
-                            HStack {
-                                // Color bar legend
-                                HStack(spacing: 2) {
-                                    Text("0m")
-                                        .font(.system(size: 9, design: .monospaced))
-                                    LinearGradient(
-                                        colors: [.blue, .cyan, .green, .yellow, .red],
-                                        startPoint: .leading,
-                                        endPoint: .trailing
-                                    )
-                                    .frame(width: 80, height: 6)
-                                    .clipShape(Capsule())
-                                    Text("\(viewModel.lidar.settings.maxDistance, specifier: "%.1f")m")
-                                        .font(.system(size: 9, design: .monospaced))
-                                }
-                                .padding(6)
-                                .background(.ultraThinMaterial, in: Capsule())
-                                Spacer()
-                            }
-                            .padding(8)
+                            passViewerButtons
+                        }
+                        .padding(12)
+                        
+                        Spacer()
+                        
+                        // Depth legend (when viewing depth)
+                        if viewModel.lidar.viewMode == .depth {
+                            depthLegend
+                                .padding(8)
                         }
                     }
                 }
-                .padding(.horizontal, 8)
+                .padding(.horizontal, 6)
                 .padding(.vertical, 4)
+                .frame(maxHeight: .infinity)
                 
-                // MARK: - Lens Selector
-                LensSelectorView(viewModel: viewModel.camera)
-                    .padding(.vertical, 4)
-                
-                // MARK: - Control Panels (Scrollable)
-                ScrollView(.vertical, showsIndicators: false) {
-                    VStack(spacing: 8) {
-                        ExposureControlsView(viewModel: viewModel.camera)
-                        FocusControlsView(viewModel: viewModel.camera)
-                        LiDARControlsView(viewModel: viewModel.lidar)
+                // MARK: - Collapsible Controls
+                if showControls {
+                    ScrollView(.vertical, showsIndicators: false) {
+                        VStack(spacing: 8) {
+                            ExposureControlsView(viewModel: viewModel.camera)
+                            FocusControlsView(viewModel: viewModel.camera)
+                            LiDARControlsView(viewModel: viewModel.lidar)
+                        }
+                        .padding(.horizontal, 8)
                     }
-                    .padding(.horizontal, 8)
+                    .frame(maxHeight: 260)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
-                .frame(maxHeight: 280)
                 
-                Spacer(minLength: 4)
-                
-                // MARK: - Capture Controls
+                // MARK: - Bottom Bar
                 captureControls
-                    .padding(.bottom, 8)
+                    .padding(.bottom, 4)
             }
         }
+        .statusBarHidden(true)
         .onAppear {
             viewModel.setup()
-            startOverlayRefresh()
+            startPreviewRefresh()
         }
         .onDisappear {
             viewModel.teardown()
-            depthRefreshTimer?.invalidate()
-        }
-        .sheet(isPresented: $showSettings) {
-            SettingsView(viewModel: viewModel)
+            refreshTimer?.invalidate()
         }
         .alert("Notice", isPresented: $viewModel.showError) {
             Button("OK") { viewModel.showError = false }
@@ -114,40 +104,73 @@ struct ViewfinderView: View {
         }
     }
     
-    // MARK: - Capture Controls Bar
+    // MARK: - Pass Viewer Buttons
+    
+    private var passViewerButtons: some View {
+        HStack(spacing: 6) {
+            ForEach(ViewMode.allCases) { mode in
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        viewModel.lidar.viewMode = mode
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: mode.icon)
+                            .font(.caption2)
+                        Text(mode.rawValue)
+                            .font(.system(size: 10, weight: .semibold, design: .rounded))
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(
+                        viewModel.lidar.viewMode == mode
+                            ? AnyShapeStyle(LinearGradient(colors: [.cyan, .blue], startPoint: .leading, endPoint: .trailing))
+                            : AnyShapeStyle(.ultraThinMaterial)
+                    )
+                    .foregroundStyle(viewModel.lidar.viewMode == mode ? .white : .secondary)
+                    .clipShape(Capsule())
+                }
+            }
+        }
+    }
+    
+    // MARK: - Depth Legend
+    
+    private var depthLegend: some View {
+        HStack(spacing: 4) {
+            Text("0m")
+                .font(.system(size: 9, design: .monospaced))
+            LinearGradient(
+                colors: [.blue, .cyan, .green, .yellow, .red],
+                startPoint: .leading, endPoint: .trailing
+            )
+            .frame(width: 80, height: 6)
+            .clipShape(Capsule())
+            Text("\(viewModel.settings.lidar.maxDistance, specifier: "%.1f")m")
+                .font(.system(size: 9, design: .monospaced))
+        }
+        .padding(8)
+        .background(.ultraThinMaterial, in: Capsule())
+    }
+    
+    // MARK: - Capture Controls
     
     private var captureControls: some View {
-        HStack(spacing: 30) {
-            // Settings button
+        HStack(spacing: 20) {
+            // Controls toggle
             Button {
-                showSettings = true
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                    showControls.toggle()
+                }
             } label: {
-                Image(systemName: "gear")
-                    .font(.title2)
-                    .foregroundStyle(.white)
-                    .frame(width: 50, height: 50)
+                Image(systemName: showControls ? "slider.horizontal.below.square.and.square.filled" : "slider.horizontal.3")
+                    .font(.title3)
+                    .foregroundStyle(showControls ? .cyan : .white)
+                    .frame(width: 48, height: 48)
                     .background(.ultraThinMaterial, in: Circle())
             }
             
             Spacer()
-            
-            // Photo button
-            Button {
-                viewModel.capturePhoto()
-                hapticFeedback()
-            } label: {
-                ZStack {
-                    Circle()
-                        .strokeBorder(.white, lineWidth: 3)
-                        .frame(width: 70, height: 70)
-                    Circle()
-                        .fill(.white)
-                        .frame(width: 60, height: 60)
-                    Image(systemName: "camera.fill")
-                        .font(.title3)
-                        .foregroundStyle(.black)
-                }
-            }
             
             // Record button
             Button {
@@ -159,47 +182,72 @@ struct ViewfinderView: View {
                 hapticFeedback()
             } label: {
                 ZStack {
+                    // Outer ring
                     Circle()
-                        .strokeBorder(.white, lineWidth: 3)
-                        .frame(width: 70, height: 70)
+                        .strokeBorder(
+                            viewModel.isRecording
+                                ? LinearGradient(colors: [.red, .orange], startPoint: .top, endPoint: .bottom)
+                                : LinearGradient(colors: [.white, .gray], startPoint: .top, endPoint: .bottom),
+                            lineWidth: 4
+                        )
+                        .frame(width: 76, height: 76)
                     
+                    // Inner shape
                     if viewModel.isRecording {
-                        RoundedRectangle(cornerRadius: 6)
-                            .fill(.red)
-                            .frame(width: 28, height: 28)
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(LinearGradient(colors: [.red, .orange], startPoint: .top, endPoint: .bottom))
+                            .frame(width: 30, height: 30)
                     } else {
                         Circle()
-                            .fill(.red)
-                            .frame(width: 56, height: 56)
+                            .fill(LinearGradient(colors: [.red, .red.opacity(0.8)], startPoint: .top, endPoint: .bottom))
+                            .frame(width: 62, height: 62)
+                            .shadow(color: .red.opacity(0.4), radius: 8)
                     }
                 }
             }
             
             Spacer()
             
-            // Saving indicator or empty space
+            // Status / saving indicator
             if viewModel.isSaving {
                 ProgressView()
-                    .tint(.white)
-                    .frame(width: 50, height: 50)
+                    .tint(.cyan)
+                    .frame(width: 48, height: 48)
             } else {
-                Color.clear
-                    .frame(width: 50, height: 50)
+                Color.clear.frame(width: 48, height: 48)
             }
         }
-        .padding(.horizontal, 30)
+        .padding(.horizontal, 24)
+        .padding(.vertical, 8)
     }
     
-    // MARK: - Depth Overlay Refresh
+    // MARK: - Preview Refresh
     
-    private func startOverlayRefresh() {
-        depthRefreshTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 15.0, repeats: true) { _ in
-            if viewModel.lidar.settings.overlayMode != .none {
-                overlayBuffer = viewModel.lidar.generateOverlayBuffer()
-            } else {
-                overlayBuffer = nil
+    private func startPreviewRefresh() {
+        refreshTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 30.0, repeats: true) { _ in
+            updatePreview()
+        }
+    }
+    
+    private func updatePreview() {
+        if viewModel.lidar.viewMode == .rgb {
+            // Show ARKit captured image
+            if let buffer = viewModel.lidar.currentCapturedImage {
+                previewImage = imageFromPixelBuffer(buffer)
+            }
+        } else {
+            // Show depth/confidence overlay
+            if let buffer = viewModel.lidar.generateViewBuffer() {
+                previewImage = imageFromPixelBuffer(buffer)
             }
         }
+    }
+    
+    private func imageFromPixelBuffer(_ buffer: CVPixelBuffer) -> UIImage? {
+        let ciImage = CIImage(cvPixelBuffer: buffer)
+        let context = CIContext()
+        guard let cgImage = context.createCGImage(ciImage, from: ciImage.extent) else { return nil }
+        return UIImage(cgImage: cgImage, scale: 1.0, orientation: .right)
     }
     
     // MARK: - Haptic

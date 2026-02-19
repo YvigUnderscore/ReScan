@@ -1,5 +1,5 @@
 // Extensions.swift
-// DIETCapture
+// ReScan
 //
 // Utility extensions for simd, CMTime, CVPixelBuffer, and formatting.
 
@@ -9,10 +9,9 @@ import CoreMedia
 import CoreVideo
 import UIKit
 
-// MARK: - simd_float4x4 → Quaternion
+// MARK: - simd_float4x4
 
 extension simd_float4x4 {
-    /// Convert 4×4 transform to column-major flat array for serialization.
     var flatArray: [[Float]] {
         return [
             [columns.0.x, columns.0.y, columns.0.z, columns.0.w],
@@ -35,7 +34,7 @@ extension simd_float4x4 {
     }
 }
 
-// MARK: - simd_float3x3 Serialization
+// MARK: - simd_float3x3
 
 extension simd_float3x3 {
     var flatArray: [[Float]] {
@@ -47,10 +46,9 @@ extension simd_float3x3 {
     }
 }
 
-// MARK: - CMTime Formatting
+// MARK: - CMTime
 
 extension CMTime {
-    /// Format as fractional shutter speed string, e.g. "1/60".
     var shutterSpeedString: String {
         let seconds = CMTimeGetSeconds(self)
         guard seconds > 0 && seconds.isFinite else { return "—" }
@@ -62,56 +60,26 @@ extension CMTime {
             return "1/\(denominator)"
         }
     }
-    
-    /// Normalized value for slider (log scale between min and max shutter speeds).
-    static func shutterSpeedSliderValue(
-        speed: CMTime,
-        min: CMTime,
-        max: CMTime
-    ) -> Float {
-        let logMin = log(Float(CMTimeGetSeconds(min)))
-        let logMax = log(Float(CMTimeGetSeconds(max)))
-        let logVal = log(Float(CMTimeGetSeconds(speed)))
-        
-        guard logMax != logMin else { return 0.5 }
-        return (logVal - logMin) / (logMax - logMin)
-    }
-    
-    /// Convert slider value (0-1 log scale) to CMTime.
-    static func shutterSpeedFromSlider(
-        value: Float,
-        min: CMTime,
-        max: CMTime
-    ) -> CMTime {
-        let logMin = log(Float(CMTimeGetSeconds(min)))
-        let logMax = log(Float(CMTimeGetSeconds(max)))
-        let logVal = logMin + Float(value) * (logMax - logMin)
-        let seconds = exp(logVal)
-        return CMTimeMakeWithSeconds(Float64(seconds), preferredTimescale: 1000000)
-    }
 }
 
-// MARK: - CVPixelBuffer Utilities
+// MARK: - CVPixelBuffer
 
 extension CVPixelBuffer {
     var width: Int { CVPixelBufferGetWidth(self) }
     var height: Int { CVPixelBufferGetHeight(self) }
-    var pixelFormatType: OSType { CVPixelBufferGetPixelFormatType(self) }
 }
 
-// MARK: - Float Formatting
+// MARK: - Float
 
 extension Float {
-    /// Format with specified decimal places.
     func formatted(decimals: Int = 1) -> String {
         return String(format: "%.\(decimals)f", self)
     }
 }
 
-// MARK: - TimeInterval Formatting
+// MARK: - TimeInterval
 
 extension TimeInterval {
-    /// Format as HH:MM:SS or MM:SS.
     var recordingDurationString: String {
         let hours = Int(self) / 3600
         let minutes = (Int(self) % 3600) / 60
@@ -124,29 +92,9 @@ extension TimeInterval {
     }
 }
 
-// MARK: - UIDevice Battery
-
-extension UIDevice.BatteryState {
-    var icon: String {
-        switch self {
-        case .charging: return "battery.100.bolt"
-        case .full: return "battery.100"
-        case .unplugged:
-            let level = UIDevice.current.batteryLevel
-            if level > 0.75 { return "battery.100" }
-            if level > 0.50 { return "battery.75" }
-            if level > 0.25 { return "battery.50" }
-            return "battery.25"
-        case .unknown: return "battery.0"
-        @unknown default: return "battery.0"
-        }
-    }
-}
-
-// MARK: - Storage Formatting
+// MARK: - Storage
 
 extension Double {
-    /// Format megabytes to human-readable string.
     var storageString: String {
         if self >= 1024 {
             return String(format: "%.1f GB", self / 1024)
@@ -155,7 +103,7 @@ extension Double {
     }
 }
 
-// MARK: - Color from String Name
+// MARK: - Color
 
 import SwiftUI
 

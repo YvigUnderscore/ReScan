@@ -1,7 +1,7 @@
 // ContentView.swift
-// DIETCapture
+// ReScan
 //
-// Root view: checks for LiDAR availability and shows the viewfinder.
+// Root view with tab bar: Capture and Media Library.
 
 import SwiftUI
 import ARKit
@@ -10,6 +10,7 @@ struct ContentView: View {
     @State private var viewModel = CaptureViewModel()
     @State private var hasPermissions = false
     @State private var permissionsChecked = false
+    @State private var selectedTab = 0
     
     var body: some View {
         Group {
@@ -20,9 +21,23 @@ struct ContentView: View {
             } else if !hasPermissions {
                 permissionsView
             } else {
-                ViewfinderView(viewModel: viewModel)
-                    .preferredColorScheme(.dark)
-                    .statusBarHidden(true)
+                TabView(selection: $selectedTab) {
+                    ViewfinderView(viewModel: viewModel)
+                        .tabItem {
+                            Image(systemName: "camera.fill")
+                            Text("Capture")
+                        }
+                        .tag(0)
+                    
+                    MediaLibraryView()
+                        .tabItem {
+                            Image(systemName: "photo.stack.fill")
+                            Text("Library")
+                        }
+                        .tag(1)
+                }
+                .tint(.cyan)
+                .preferredColorScheme(.dark)
             }
         }
         .task {
@@ -34,14 +49,28 @@ struct ContentView: View {
     
     private var loadingView: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
-            VStack(spacing: 20) {
+            LinearGradient(
+                colors: [Color(red: 0.05, green: 0.05, blue: 0.12), .black],
+                startPoint: .top, endPoint: .bottom
+            ).ignoresSafeArea()
+            
+            VStack(spacing: 24) {
+                Image(systemName: "viewfinder")
+                    .font(.system(size: 48))
+                    .foregroundStyle(
+                        LinearGradient(colors: [.cyan, .blue], startPoint: .topLeading, endPoint: .bottomTrailing)
+                    )
+                    .symbolEffect(.pulse, options: .repeating)
+                
+                Text("ReScan")
+                    .font(.system(size: 32, weight: .bold, design: .rounded))
+                    .foregroundStyle(
+                        LinearGradient(colors: [.white, .cyan.opacity(0.8)], startPoint: .leading, endPoint: .trailing)
+                    )
+                
                 ProgressView()
-                    .tint(.white)
-                    .scaleEffect(1.5)
-                Text("Initializing...")
-                    .font(.headline)
-                    .foregroundStyle(.white)
+                    .tint(.cyan)
+                    .scaleEffect(1.2)
             }
         }
     }
@@ -55,17 +84,11 @@ struct ContentView: View {
                 Image(systemName: "sensor.tag.radiowaves.forward.fill")
                     .font(.system(size: 64))
                     .foregroundStyle(.red)
-                
                 Text("LiDAR Required")
-                    .font(.title)
-                    .fontWeight(.bold)
-                    .foregroundStyle(.white)
-                
+                    .font(.title).fontWeight(.bold).foregroundStyle(.white)
                 Text("This app requires an iPhone with LiDAR sensor.\n(iPhone 12 Pro or newer)")
-                    .font(.body)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 40)
+                    .font(.body).foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center).padding(.horizontal, 40)
             }
         }
     }
@@ -77,30 +100,20 @@ struct ContentView: View {
             Color.black.ignoresSafeArea()
             VStack(spacing: 24) {
                 Image(systemName: "camera.fill")
-                    .font(.system(size: 64))
-                    .foregroundStyle(.cyan)
-                
+                    .font(.system(size: 64)).foregroundStyle(.cyan)
                 Text("Camera Access Required")
-                    .font(.title2)
-                    .fontWeight(.bold)
-                    .foregroundStyle(.white)
-                
-                Text("DIET Capture needs access to your camera and LiDAR sensor to function.")
-                    .font(.body)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 40)
-                
+                    .font(.title2).fontWeight(.bold).foregroundStyle(.white)
+                Text("ReScan needs access to your camera and LiDAR sensor.")
+                    .font(.body).foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center).padding(.horizontal, 40)
                 Button {
-                    if let settingsURL = URL(string: UIApplication.openSettingsURLString) {
-                        UIApplication.shared.open(settingsURL)
+                    if let url = URL(string: UIApplication.openSettingsURLString) {
+                        UIApplication.shared.open(url)
                     }
                 } label: {
                     Text("Open Settings")
-                        .font(.headline)
-                        .foregroundStyle(.black)
-                        .padding(.horizontal, 32)
-                        .padding(.vertical, 14)
+                        .font(.headline).foregroundStyle(.black)
+                        .padding(.horizontal, 32).padding(.vertical, 14)
                         .background(.cyan, in: Capsule())
                 }
             }
@@ -111,7 +124,6 @@ struct ContentView: View {
     
     private func checkPermissions() async {
         let status = AVCaptureDevice.authorizationStatus(for: .video)
-        
         switch status {
         case .authorized:
             hasPermissions = true
@@ -120,7 +132,6 @@ struct ContentView: View {
         default:
             hasPermissions = false
         }
-        
         permissionsChecked = true
     }
 }

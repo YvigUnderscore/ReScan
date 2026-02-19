@@ -1,47 +1,45 @@
-name: Build iOS App
+name: Build ReScan iOS
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ main ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
   build:
-    name: Build & Package
     runs-on: macos-latest
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+    - uses: actions/checkout@v4
 
-      - name: Install XcodeGen
-        run: brew install xcodegen
+    - name: Install XcodeGen
+      run: brew install xcodegen
 
-      - name: Generate Xcode Project
-        run: xcodegen generate
+    - name: Generate Xcode Project
+      run: xcodegen generate
 
-      - name: Build App (Unsigned)
-        run: |
-          xcodebuild clean build \
-            -project DIETCapture.xcodeproj \
-            -scheme DIETCapture \
-            -sdk iphoneos \
-            -configuration Release \
-            -derivedDataPath build \
-            CODE_SIGN_IDENTITY="" \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO
+    - name: Build
+      run: |
+        xcodebuild build \
+          -project ReScan.xcodeproj \
+          -scheme ReScan \
+          -destination 'generic/platform=iOS' \
+          -configuration Release \
+          CODE_SIGN_IDENTITY="" \
+          CODE_SIGNING_REQUIRED=NO \
+          CODE_SIGNING_ALLOWED=NO \
+          ONLY_ACTIVE_ARCH=NO
 
-      - name: Package IPA
-        run: |
-          mkdir -p Payload
-          mv build/Build/Products/Release-iphoneos/DIETCapture.app Payload/
-          zip -r DIETCapture.ipa Payload
+    - name: Package IPA
+      run: |
+        mkdir -p Payload
+        cp -r ~/Library/Developer/Xcode/DerivedData/ReScan-*/Build/Products/Release-iphoneos/ReScan.app Payload/ 2>/dev/null || \
+        cp -r build/Release-iphoneos/ReScan.app Payload/ 2>/dev/null || true
+        zip -r ReScan.ipa Payload/
 
-      - name: Upload IPA
-        uses: actions/upload-artifact@v4
-        with:
-          name: DIETCapture-IPA
-          path: DIETCapture.ipa
+    - name: Upload IPA
+      uses: actions/upload-artifact@v4
+      with:
+        name: ReScan-IPA
+        path: ReScan.ipa

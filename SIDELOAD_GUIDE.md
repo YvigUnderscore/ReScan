@@ -20,6 +20,43 @@ Si vous avez accès un jour à un PC Windows ou si vous configurez AltServer sur
 4. Transférez le fichier `DIETCapture.ipa` sur votre iPhone (via iCloud Drive, AirDrop, etc.).
 5. Ouvrez AltStore sur l'iPhone, appuyez sur "+", et sélectionnez l'`ipa`.
 
+## 3. Installer et Démarrer AltStore
+
+1.  **Lancer le script d'installation** :
+    ```bash
+    chmod +x install_altstore.sh
+    ./install_altstore.sh
+    ```
+2.  **Sur votre iPhone** :
+    *   L'icône **AltStore** va apparaître.
+    *   Si vous essayez de l'ouvrir, vous aurez un message "Développeur non approuvé".
+    *   Allez dans **Réglages** > **Général** > **VPN et gestion de l'appareil**.
+    *   Appuyez sur votre e-mail (Apple ID) sous "APP DE DÉVELOPPEMENT".
+    *   Appuyez sur **"Faire confiance à..."**.
+    *   Maintenant, vous pouvez ouvrir AltStore !
+
+## 4. Installer DIETCapture (votre application)
+
+Une fois que vous avez le fichier `DIETCapture.ipa` (téléchargé depuis GitHub Actions) :
+
+### Méthode via USB (Recommandée sur Linux)
+Utilisez le même outil `AltServer` pour installer votre app :
+
+```bash
+# Remplacez les valeurs par les vôtres
+sudo ./AltServer -u <VOTRE_UDID> -a <VOTRE_EMAIL> -p <VOTRE_MOT_DE_PASSE> DIETCapture.ipa
+```
+
+*(Note : L'UDID est affiché par le script d'installation ou via la commande `idevice_id -l`)*
+
+### Méthode via AltStore (sur le téléphone)
+1.  Copiez le fichier `.ipa` sur votre iPhone (via iCloud Drive, AirDrop, ou téléchargement direct).
+2.  Ouvrez **AltStore**.
+3.  Allez dans l'onglet **My Apps**.
+4.  Appuyez sur le **+** en haut à gauche.
+5.  Sélectionnez le fichier `DIETCapture.ipa`.
+6.  *Note : Cela nécessite que AltServer tourne sur le PC et soit sur le même Wi-Fi, ce qui est parfois instable sur Linux. La méthode USB ci-dessus est plus fiable.*
+
 ### Option B : Sideloadly (Windows/macOS)
 Très simple si vous avez accès à un ordinateur Windows.
 1. Téléchargez **Sideloadly**.

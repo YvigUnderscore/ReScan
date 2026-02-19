@@ -1,7 +1,7 @@
 // CaptureSession.swift
-// DIETCapture
+// ReScan
 //
-// Represents one recording session: tracks frames, timestamps, and output paths.
+// Represents one recording session. Stray Scanner-compatible directory structure.
 
 import Foundation
 
@@ -13,42 +13,30 @@ final class CaptureSession {
     enum State: String {
         case idle
         case recording
-        case paused
         case saving
-    }
-    
-    enum CaptureType: String {
-        case photo
-        case video
     }
     
     // MARK: - Properties
     
     var state: State = .idle
-    var captureType: CaptureType = .video
     var frameCount: Int = 0
     var startTime: Date?
     var elapsedTime: TimeInterval = 0
     var sessionDirectory: URL?
     var frameMetadata: [CaptureFrameMetadata] = []
     
-    // Storage
     var estimatedStorageUsedMB: Double = 0
     var availableStorageMB: Double = 0
     
-    // MARK: - Directory Structure
+    // MARK: - Stray Scanner Directory Structure
     
     private let fileManager = FileManager.default
     
-    var rgbDirectory: URL? { sessionDirectory?.appendingPathComponent("rgb") }
     var depthDirectory: URL? { sessionDirectory?.appendingPathComponent("depth") }
     var confidenceDirectory: URL? { sessionDirectory?.appendingPathComponent("confidence") }
-    var posesDirectory: URL? { sessionDirectory?.appendingPathComponent("poses") }
-    var pointcloudsDirectory: URL? { sessionDirectory?.appendingPathComponent("pointclouds") }
-    var meshDirectory: URL? { sessionDirectory?.appendingPathComponent("mesh") }
-    var metadataDirectory: URL? { sessionDirectory?.appendingPathComponent("metadata") }
-    var colmapDirectory: URL? { sessionDirectory?.appendingPathComponent("metadata/colmap") }
-    var videoDirectory: URL? { sessionDirectory?.appendingPathComponent("video") }
+    var videoURL: URL? { sessionDirectory?.appendingPathComponent("rgb.mp4") }
+    var cameraMatrixURL: URL? { sessionDirectory?.appendingPathComponent("camera_matrix.csv") }
+    var odometryURL: URL? { sessionDirectory?.appendingPathComponent("odometry.csv") }
     
     // MARK: - Methods
     
@@ -56,13 +44,10 @@ final class CaptureSession {
         let documentsDir = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "yyyyMMdd_HHmmss"
-        let sessionName = "capture_session_\(dateFormatter.string(from: Date()))"
+        let sessionName = "scan_\(dateFormatter.string(from: Date()))"
         let sessionDir = documentsDir.appendingPathComponent(sessionName)
         
-        let subdirectories = [
-            "rgb", "depth", "confidence", "poses",
-            "pointclouds", "mesh", "metadata", "metadata/colmap", "video"
-        ]
+        let subdirectories = ["depth", "confidence"]
         
         for subdir in subdirectories {
             let dir = sessionDir.appendingPathComponent(subdir)
@@ -109,57 +94,65 @@ final class CaptureSession {
         }
     }
     
-    // MARK: - Frame Naming
+    // MARK: - Stray Scanner Naming (6-digit zero-padded)
     
     func frameName(for index: Int) -> String {
-        return String(format: "frame_%06d", index)
+        return String(format: "%06d", index)
     }
     
-    func rgbURL(for index: Int, extension ext: String) -> URL? {
-        rgbDirectory?.appendingPathComponent("\(frameName(for: index)).\(ext)")
-    }
-    
-    func depthURL(for index: Int, extension ext: String) -> URL? {
-        depthDirectory?.appendingPathComponent("\(frameName(for: index)).\(ext)")
+    func depthURL(for index: Int) -> URL? {
+        depthDirectory?.appendingPathComponent("\(frameName(for: index)).png")
     }
     
     func confidenceURL(for index: Int) -> URL? {
         confidenceDirectory?.appendingPathComponent("\(frameName(for: index)).png")
     }
     
-    func poseURL(for index: Int) -> URL? {
-        posesDirectory?.appendingPathComponent("\(frameName(for: index)).txt")
-    }
+    // MARK: - List All Sessions
     
-    func pointCloudURL(for index: Int) -> URL? {
-        pointcloudsDirectory?.appendingPathComponent("\(frameName(for: index)).ply")
-    }
-    
-    // MARK: - Session Info Export
-    
-    func exportSessionInfo(settings: SessionSettings, deviceName: String) throws {
-        guard let metaDir = metadataDirectory else { return }
+    static func listSessions() -> [RecordedSession] {
+        let fm = FileManager.default
+        guard let documentsDir = fm.urls(for: .documentDirectory, in: .userDomainMask).first else { return [] }
         
-        let info: [String: Any] = [
-            "device": deviceName,
-            "startTime": startTime?.iso8601String ?? "",
-            "endTime": Date().iso8601String,
-            "frameCount": frameCount,
-            "settings": [
-                "exposureMode": settings.camera.exposureMode.rawValue,
-                "photoFormat": settings.camera.photoFormat.rawValue,
-                "videoCodec": settings.camera.videoCodec.rawValue,
-                "depthFormat": settings.camera.depthExportFormat.rawValue,
-                "targetFramerate": settings.camera.targetFramerate,
-                "lidarMaxDistance": settings.lidar.maxDistance,
-                "lidarSmoothing": settings.lidar.smoothingEnabled,
-                "confidenceThreshold": settings.lidar.confidenceThreshold.rawValue
-            ]
-        ]
+        guard let contents = try? fm.contentsOfDirectory(
+            at: documentsDir, includingPropertiesForKeys: [.creationDateKey],
+            options: [.skipsHiddenFiles]
+        ) else { return [] }
         
-        let data = try JSONSerialization.data(withJSONObject: info, options: .prettyPrinted)
-        let url = metaDir.appendingPathComponent("session_info.json")
-        try data.write(to: url)
+        var sessions: [RecordedSession] = []
+        
+        for dir in contents {
+            guard dir.hasDirectoryPath else { continue }
+            let name = dir.lastPathComponent
+            guard name.hasPrefix("scan_") else { continue }
+            
+            let depthDir = dir.appendingPathComponent("depth")
+            let confDir = dir.appendingPathComponent("confidence")
+            let videoFile = dir.appendingPathComponent("rgb.mp4")
+            
+            let depthFiles = (try? fm.contentsOfDirectory(atPath: depthDir.path))?.filter { $0.hasSuffix(".png") } ?? []
+            let hasConf = fm.fileExists(atPath: confDir.path)
+            let hasVideo = fm.fileExists(atPath: videoFile.path)
+            
+            let creationDate = (try? fm.attributesOfItem(atPath: dir.path))?[.creationDate] as? Date ?? Date()
+            
+            // Thumbnail: first depth frame
+            let thumbURL = depthFiles.isEmpty ? nil : depthDir.appendingPathComponent(depthFiles.sorted().first!)
+            
+            sessions.append(RecordedSession(
+                id: name,
+                name: name,
+                date: creationDate,
+                directory: dir,
+                frameCount: depthFiles.count,
+                hasDepth: !depthFiles.isEmpty,
+                hasConfidence: hasConf,
+                hasVideo: hasVideo,
+                thumbnailURL: thumbURL
+            ))
+        }
+        
+        return sessions.sorted { $0.date > $1.date }
     }
 }
 
