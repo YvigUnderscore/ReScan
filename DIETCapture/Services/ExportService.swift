@@ -9,6 +9,7 @@ import AVFoundation
 import ARKit
 import UIKit
 import CoreImage
+import VideoToolbox
 
 struct UnsafeSendableWrapper<T>: @unchecked Sendable {
     let value: T
@@ -146,7 +147,7 @@ final class ExportService {
         // Extract quaternion from rotation matrix
         let quat = quaternionFromMatrix(pose.rotation3x3)
         
-        let line = "\(timestamp), \(frame), \(position.x), \(position.y), \(position.z), \(quat.x), \(quat.y), \(quat.z), \(quat.w)\n"
+        let line = "\(timestamp), \(frame), \(position.x), \(position.y), \(position.z), \(quat.vector.x), \(quat.vector.y), \(quat.vector.z), \(quat.vector.w)\n"
         handle.write(line.data(using: .utf8)!)
     }
     

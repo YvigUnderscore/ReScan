@@ -93,7 +93,7 @@ struct SessionCardView: View {
                 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(session.name)
-                        .font(.system(.subheadline, weight: .semibold, design: .rounded))
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
                         .foregroundStyle(.white)
                     
                     HStack(spacing: 10) {
