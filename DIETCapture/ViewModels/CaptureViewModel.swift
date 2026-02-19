@@ -13,8 +13,8 @@ final class CaptureViewModel {
     
     // MARK: - Sub-ViewModels
     
-    let camera = CameraViewModel()
-    let lidar = LiDARViewModel()
+    var camera = CameraViewModel()
+    var lidar = LiDARViewModel()
     
     // MARK: - Session
     
@@ -337,7 +337,7 @@ final class CaptureViewModel {
             do {
                 // Use the last known intrinsics and a representative image size
                 let intrinsics = lidar.currentIntrinsics
-                let depthRes = lidar.arService.depthMapResolution
+                // let depthRes = lidar.arService.depthMapResolution
                 
                 // Image resolution from camera (approximate from depth res ratio)
                 let imageWidth = 1920  // Default; could read from actual capture

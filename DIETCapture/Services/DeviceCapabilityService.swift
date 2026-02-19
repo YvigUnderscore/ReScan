@@ -83,7 +83,7 @@ final class DeviceCapabilityService {
             
             // ProRes detection
             for format in wideCamera.formats {
-                let codecs = format.supportedColorSpaces
+                // let codecs = format.supportedColorSpaces
                 // Check for ProRes support in formats
                 if format.isVideoHDRSupported {
                     // ProRes typically available on A17 Pro+

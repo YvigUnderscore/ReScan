@@ -397,7 +397,7 @@ final class CameraService: NSObject {
                 
                 // Find a format that supports this framerate
                 var bestFormat: AVCaptureDevice.Format?
-                var bestFrameRateRange: AVFrameRateRange?
+                // var bestFrameRateRange: AVFrameRateRange?
                 
                 for format in device.formats {
                     for range in format.videoSupportedFrameRateRanges {

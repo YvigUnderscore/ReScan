@@ -11,6 +11,10 @@ import CoreImage
 import ModelIO
 import MetalKit
 
+struct UnsafeSendableWrapper<T>: @unchecked Sendable {
+    let value: T
+}
+
 final class ExportService {
     
     // MARK: - Queues
@@ -77,7 +81,9 @@ final class ExportService {
     // MARK: - Depth Map Export
     
     func saveDepthMap16BitPNG(_ depthMap: CVPixelBuffer, to url: URL, completion: ((Error?) -> Void)? = nil) {
+        let bufferWrapper = UnsafeSendableWrapper(value: depthMap)
         writeQueue.async {
+            let depthMap = bufferWrapper.value
             CVPixelBufferLockBaseAddress(depthMap, .readOnly)
             defer { CVPixelBufferUnlockBaseAddress(depthMap, .readOnly) }
             
@@ -102,7 +108,7 @@ final class ExportService {
             
             // Create 16-bit grayscale PNG
             let bitsPerComponent = 16
-            let bitsPerPixel = 16
+            // bitsPerPixel unused
             let bytesPerRow = width * 2
             let colorSpace = CGColorSpaceCreateDeviceGray()
             
@@ -142,7 +148,9 @@ final class ExportService {
     }
     
     func saveDepthMap32BitTIFF(_ depthMap: CVPixelBuffer, to url: URL, completion: ((Error?) -> Void)? = nil) {
+        let bufferWrapper = UnsafeSendableWrapper(value: depthMap)
         writeQueue.async {
+            let depthMap = bufferWrapper.value
             let ciImage = CIImage(cvPixelBuffer: depthMap)
             let context = CIContext()
             
@@ -162,7 +170,9 @@ final class ExportService {
     
     /// Minimal OpenEXR writer for single-channel float32 depth maps.
     func saveDepthMapEXR(_ depthMap: CVPixelBuffer, to url: URL, completion: ((Error?) -> Void)? = nil) {
+        let bufferWrapper = UnsafeSendableWrapper(value: depthMap)
         writeQueue.async {
+            let depthMap = bufferWrapper.value
             CVPixelBufferLockBaseAddress(depthMap, .readOnly)
             defer { CVPixelBufferUnlockBaseAddress(depthMap, .readOnly) }
             
@@ -201,7 +211,9 @@ final class ExportService {
     // MARK: - Confidence Map Export
     
     func saveConfidenceMap(_ confidenceMap: CVPixelBuffer, to url: URL, completion: ((Error?) -> Void)? = nil) {
+        let bufferWrapper = UnsafeSendableWrapper(value: confidenceMap)
         writeQueue.async {
+            let confidenceMap = bufferWrapper.value
             CVPixelBufferLockBaseAddress(confidenceMap, .readOnly)
             defer { CVPixelBufferUnlockBaseAddress(confidenceMap, .readOnly) }
             
