@@ -403,7 +403,7 @@ final class CameraService: NSObject {
                     for range in format.videoSupportedFrameRateRanges {
                         if range.minFrameRate <= fps && range.maxFrameRate >= fps {
                             bestFormat = format
-                            bestFrameRateRange = range
+                            // bestFrameRateRange = range
                         }
                     }
                 }
