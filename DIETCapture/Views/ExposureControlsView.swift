@@ -130,20 +130,20 @@ struct ExposureControlsView: View {
             VStack(spacing: 14) {
                 // Mode Toggle
                 HStack {
-                    Text("Mode")
+                    Label("Mode", systemImage: "sun.max.fill")
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(.secondary)
                     Spacer()
-                    Picker("Mode", selection: Binding(
-                        get: { viewModel.settings.exposureMode },
-                        set: { viewModel.setExposureMode($0) }
-                    )) {
+                    HStack(spacing: 4) {
                         ForEach(ExposureMode.allCases) { mode in
-                            Text(mode.rawValue).tag(mode)
+                            GlassPill(
+                                label: mode.rawValue,
+                                isSelected: viewModel.settings.exposureMode == mode
+                            ) {
+                                viewModel.setExposureMode(mode)
+                            }
                         }
                     }
-                    .pickerStyle(.segmented)
-                    .frame(maxWidth: 200)
                 }
                 
                 // Shutter Presets (Manual only)
@@ -211,20 +211,20 @@ struct FocusControlsView: View {
         GlassCard {
             VStack(spacing: 14) {
                 HStack {
-                    Text("Mode")
+                    Label("Mode", systemImage: "scope")
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(.secondary)
                     Spacer()
-                    Picker("Mode", selection: Binding(
-                        get: { viewModel.settings.focusMode },
-                        set: { viewModel.setFocusMode($0) }
-                    )) {
+                    HStack(spacing: 4) {
                         ForEach(FocusMode.allCases) { mode in
-                            Text(mode.rawValue).tag(mode)
+                            GlassPill(
+                                label: mode.rawValue,
+                                isSelected: viewModel.settings.focusMode == mode
+                            ) {
+                                viewModel.setFocusMode(mode)
+                            }
                         }
                     }
-                    .pickerStyle(.segmented)
-                    .frame(maxWidth: 200)
                 }
                 
                 GlassSlider(
@@ -271,20 +271,20 @@ struct LiDARControlsView: View {
                 
                 // Confidence
                 HStack {
-                    Text("Confidence")
+                    Label("Confidence", systemImage: "checkmark.shield")
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(.secondary)
                     Spacer()
-                    Picker("Confidence", selection: Binding(
-                        get: { viewModel.settings.confidenceThreshold },
-                        set: { viewModel.updateConfidenceThreshold($0) }
-                    )) {
+                    HStack(spacing: 4) {
                         ForEach(ConfidenceThreshold.allCases) { level in
-                            Text(level.label).tag(level)
+                            GlassPill(
+                                label: level.label,
+                                isSelected: viewModel.settings.confidenceThreshold == level
+                            ) {
+                                viewModel.updateConfidenceThreshold(level)
+                            }
                         }
                     }
-                    .pickerStyle(.segmented)
-                    .frame(maxWidth: 200)
                 }
                 
                 // Smoothing

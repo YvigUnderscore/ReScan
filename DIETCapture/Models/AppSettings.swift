@@ -21,8 +21,8 @@ final class AppSettings: ObservableObject {
     @AppStorage("defaultSmoothing") var defaultSmoothing: Bool = true
     
     enum VideoResolution: String, CaseIterable, Identifiable {
-        case high = "Highest Available (Near 4K)"
-        case medium = "1080p"
+        case high = "3840 × 2160 (4K)"
+        case medium = "1920 × 1080 (1080p)"
         var id: String { rawValue }
     }
     

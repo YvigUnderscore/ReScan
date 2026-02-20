@@ -27,7 +27,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Video Recording")
                 } footer: {
-                    Text("ARKit restricts available resolutions and framerates. 'Highest Available' attempts to select near-4K on Pro iPhones. Framerate will fallback to 60fps if 30fps is unsupported by the format.")
+                    Text("ARKit selects the closest supported format. 4K is only available on Pro iPhones. The actual format depends on device capabilities.")
                 }
                 
                 Section {
@@ -54,7 +54,7 @@ struct SettingsView: View {
                 } header: {
                     Text("LiDAR Defaults")
                 } footer: {
-                    Text("These values reset your LiDAR controls on app launch.")
+                    Text("Confidence controls the minimum quality threshold for depth measurements.\n\n• Low: Keeps all depth measurements, including uncertain ones. Maximum coverage but may include noise.\n• Medium (Recommended): Good balance between coverage and accuracy. Filters out the least reliable points.\n• High: Only keeps the most reliable depth measurements. Best accuracy but may have gaps in coverage.\n\nSmooth Depth applies temporal smoothing across frames to reduce noise and flickering in the depth map.")
                 }
                 
                 Section {

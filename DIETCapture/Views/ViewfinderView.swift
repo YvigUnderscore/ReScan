@@ -106,8 +106,9 @@ struct ViewfinderView: View {
     // MARK: - Pass Viewer Buttons
     
     private var passViewerButtons: some View {
-        HStack(spacing: 6) {
-            ForEach(ViewMode.allCases) { mode in
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                ForEach(ViewMode.allCases) { mode in
                 Button {
                     withAnimation(.easeInOut(duration: 0.2)) {
                         viewModel.lidar.viewMode = mode
@@ -130,6 +131,7 @@ struct ViewfinderView: View {
                     .clipShape(Capsule())
                 }
             }
+            .padding(.horizontal, 2)
         }
     }
     
