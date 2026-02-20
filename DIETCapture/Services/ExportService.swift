@@ -95,9 +95,12 @@ final class ExportService {
         
         guard input.isReadyForMoreMediaData else { return }
         
-        // Horizontal flip: swap left/right so HAUT is on left, BAS on right
+        // Horizontal flip via explicit transform (CIImage.oriented shifts extent to negative coords)
         let ciImage = CIImage(cvPixelBuffer: pixelBuffer)
-        let rotated = ciImage.oriented(.upMirrored)  // Horizontal flip only
+        let w = CGFloat(CVPixelBufferGetWidth(pixelBuffer))
+        let flipTransform = CGAffineTransform(scaleX: -1, y: 1)
+            .concatenating(CGAffineTransform(translationX: w, y: 0))
+        let rotated = ciImage.transformed(by: flipTransform)
         
         // Render into output buffer (same landscape dimensions)
         guard let pool = adaptor.pixelBufferPool else { return }
