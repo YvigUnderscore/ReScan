@@ -100,7 +100,7 @@ final class ExportService {
         
         // Rotate pixel buffer 90° CCW using CIImage orientation
         let ciImage = CIImage(cvPixelBuffer: pixelBuffer)
-        let rotated = ciImage.oriented(.left)  // 90° CCW
+        let rotated = ciImage.oriented(.right)  // Portrait orientation from landscape-right
         
         // Render into a new pixel buffer with portrait dimensions
         guard let pool = adaptor.pixelBufferPool else { return }
