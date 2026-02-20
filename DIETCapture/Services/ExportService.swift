@@ -38,8 +38,6 @@ final class ExportService {
     
     // MARK: - Video Recording
     
-    private let ciContext = CIContext()
-    
     func startVideoRecording(to url: URL, width: Int, height: Int) throws {
         // Video file stores landscape pixels rotated 180° from ARKit's landscape-right
         // Result: HAUT (phone top) on left, BAS (phone bottom) on right
@@ -95,21 +93,8 @@ final class ExportService {
         
         guard input.isReadyForMoreMediaData else { return }
         
-        // Horizontal flip via explicit transform (CIImage.oriented shifts extent to negative coords)
-        let ciImage = CIImage(cvPixelBuffer: pixelBuffer)
-        let w = CGFloat(CVPixelBufferGetWidth(pixelBuffer))
-        let flipTransform = CGAffineTransform(scaleX: -1, y: 1)
-            .concatenating(CGAffineTransform(translationX: w, y: 0))
-        let rotated = ciImage.transformed(by: flipTransform)
-        
-        // Render into output buffer (same landscape dimensions)
-        guard let pool = adaptor.pixelBufferPool else { return }
-        var outBuffer: CVPixelBuffer?
-        CVPixelBufferPoolCreatePixelBuffer(nil, pool, &outBuffer)
-        guard let outputBuffer = outBuffer else { return }
-        
-        ciContext.render(rotated, to: outputBuffer)
-        adaptor.append(outputBuffer, withPresentationTime: presentationTime)
+        // Write raw ARKit buffer directly (already correct orientation)
+        adaptor.append(pixelBuffer, withPresentationTime: presentationTime)
     }
     
     func finishVideoRecording(completion: @escaping () -> Void) {
