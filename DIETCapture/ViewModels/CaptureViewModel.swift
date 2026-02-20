@@ -118,6 +118,12 @@ final class CaptureViewModel {
         // Close odometry
         exportService.closeOdometryFile()
         
+        // Export mesh if available
+        let meshAnchors = lidar.meshAnchors
+        if !meshAnchors.isEmpty, let meshURL = session.meshURL {
+            exportService.exportMeshAsOBJ(anchors: meshAnchors, to: meshURL)
+        }
+        
         // Finish video
         exportService.finishVideoRecording { [weak self] in
             DispatchQueue.main.async {

@@ -10,6 +10,8 @@ import ARKit
 import UIKit
 import CoreImage
 import VideoToolbox
+import ModelIO
+import SceneKit
 
 struct UnsafeSendableWrapper<T>: @unchecked Sendable {
     let value: T
@@ -36,13 +38,19 @@ final class ExportService {
     
     // MARK: - Video Recording
     
+    private let ciContext = CIContext()
+    
     func startVideoRecording(to url: URL, width: Int, height: Int) throws {
+        // Video file stores portrait-oriented pixels (swapped dimensions)
+        let portraitWidth = height
+        let portraitHeight = width
+        
         let writer = try AVAssetWriter(url: url, fileType: .mp4)
         
         let videoSettings: [String: Any] = [
             AVVideoCodecKey: AVVideoCodecType.hevc,
-            AVVideoWidthKey: width,
-            AVVideoHeightKey: height,
+            AVVideoWidthKey: portraitWidth,
+            AVVideoHeightKey: portraitHeight,
             AVVideoCompressionPropertiesKey: [
                 AVVideoAverageBitRateKey: 20_000_000,
                 AVVideoProfileLevelKey: kVTProfileLevel_HEVC_Main_AutoLevel,
@@ -51,14 +59,12 @@ final class ExportService {
         
         let input = AVAssetWriterInput(mediaType: .video, outputSettings: videoSettings)
         input.expectsMediaDataInRealTime = true
-        // ARKit capturedImage is landscape-right, rotate 90° CCW for portrait playback
-        // (bottom of frame → right side, top → left side)
-        input.transform = CGAffineTransform(rotationAngle: .pi / 2)
+        // No display transform needed — pixels are already rotated
         
         let sourceAttributes: [String: Any] = [
             kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
-            kCVPixelBufferWidthKey as String: width,
-            kCVPixelBufferHeightKey as String: height
+            kCVPixelBufferWidthKey as String: portraitWidth,
+            kCVPixelBufferHeightKey as String: portraitHeight
         ]
         
         let adaptor = AVAssetWriterInputPixelBufferAdaptor(
@@ -90,9 +96,29 @@ final class ExportService {
             writer.startSession(atSourceTime: presentationTime)
         }
         
-        if input.isReadyForMoreMediaData {
-            adaptor.append(pixelBuffer, withPresentationTime: presentationTime)
-        }
+        guard input.isReadyForMoreMediaData else { return }
+        
+        // Rotate pixel buffer 90° CCW via CIImage
+        let ciImage = CIImage(cvPixelBuffer: pixelBuffer)
+        let srcWidth = CGFloat(CVPixelBufferGetWidth(pixelBuffer))
+        let srcHeight = CGFloat(CVPixelBufferGetHeight(pixelBuffer))
+        
+        // 90° CCW: rotate then translate to keep in positive coordinates
+        let rotated = ciImage
+            .transformed(by: CGAffineTransform(rotationAngle: .pi / 2))
+            .transformed(by: CGAffineTransform(translationX: 0, y: srcWidth))
+        
+        // Render into a new pixel buffer with portrait dimensions
+        let outWidth = Int(srcHeight)
+        let outHeight = Int(srcWidth)
+        
+        guard let pool = adaptor.pixelBufferPool else { return }
+        var outBuffer: CVPixelBuffer?
+        CVPixelBufferPoolCreatePixelBuffer(nil, pool, &outBuffer)
+        guard let outputBuffer = outBuffer else { return }
+        
+        ciContext.render(rotated, to: outputBuffer)
+        adaptor.append(outputBuffer, withPresentationTime: presentationTime)
     }
     
     func finishVideoRecording(completion: @escaping () -> Void) {
@@ -254,8 +280,81 @@ final class ExportService {
             }
         }
     }
+    
+    // MARK: - Mesh Export (OBJ)
+    
+    func exportMeshAsOBJ(anchors: [ARMeshAnchor], to url: URL) {
+        guard !anchors.isEmpty else { return }
+        
+        writeQueue.async {
+            var allVertices: [SIMD3<Float>] = []
+            var allFaces: [[Int32]] = []
+            var vertexOffset: Int32 = 0
+            
+            for anchor in anchors {
+                let geometry = anchor.geometry
+                let transform = anchor.transform
+                let vertexCount = geometry.vertices.count
+                
+                // Get vertex positions and apply transform
+                let vertexBuffer = geometry.vertices.buffer.contents()
+                let vertexStride = geometry.vertices.stride
+                
+                for i in 0..<vertexCount {
+                    let ptr = vertexBuffer.advanced(by: i * vertexStride)
+                    let vertex = ptr.assumingMemoryBound(to: SIMD3<Float>.self).pointee
+                    
+                    // Transform to world space
+                    let worldPos = transform * SIMD4<Float>(vertex.x, vertex.y, vertex.z, 1.0)
+                    allVertices.append(SIMD3<Float>(worldPos.x, worldPos.y, worldPos.z))
+                }
+                
+                // Get face indices
+                let faceCount = geometry.faces.count
+                let indexBuffer = geometry.faces.buffer.contents()
+                let bytesPerIndex = geometry.faces.bytesPerIndex
+                let indicesPerFace = geometry.faces.indexCountPerPrimitive
+                
+                for i in 0..<faceCount {
+                    var face: [Int32] = []
+                    for j in 0..<indicesPerFace {
+                        let offset = (i * indicesPerFace + j) * bytesPerIndex
+                        let ptr = indexBuffer.advanced(by: offset)
+                        let index: Int32
+                        if bytesPerIndex == 4 {
+                            index = Int32(ptr.assumingMemoryBound(to: UInt32.self).pointee)
+                        } else {
+                            index = Int32(ptr.assumingMemoryBound(to: UInt16.self).pointee)
+                        }
+                        face.append(index + vertexOffset)
+                    }
+                    allFaces.append(face)
+                }
+                
+                vertexOffset += Int32(vertexCount)
+            }
+            
+            // Write OBJ file
+            var obj = "# ReScan Mesh Export\n"
+            obj += "# Vertices: \(allVertices.count), Faces: \(allFaces.count)\n\n"
+            
+            for v in allVertices {
+                obj += "v \(v.x) \(v.y) \(v.z)\n"
+            }
+            
+            obj += "\n"
+            
+            for face in allFaces {
+                // OBJ uses 1-based indexing
+                let indices = face.map { String($0 + 1) }.joined(separator: " ")
+                obj += "f \(indices)\n"
+            }
+            
+            try? obj.write(to: url, atomically: true, encoding: .utf8)
+            print("[ExportService] Mesh exported: \(allVertices.count) vertices, \(allFaces.count) faces")
+        }
+    }
 }
-
 // MARK: - Errors
 
 enum ExportError: LocalizedError {

@@ -37,6 +37,7 @@ final class CaptureSession {
     var videoURL: URL? { sessionDirectory?.appendingPathComponent("rgb.mp4") }
     var cameraMatrixURL: URL? { sessionDirectory?.appendingPathComponent("camera_matrix.csv") }
     var odometryURL: URL? { sessionDirectory?.appendingPathComponent("odometry.csv") }
+    var meshURL: URL? { sessionDirectory?.appendingPathComponent("mesh.obj") }
     
     // MARK: - Methods
     
