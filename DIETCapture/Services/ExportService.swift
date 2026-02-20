@@ -98,20 +98,11 @@ final class ExportService {
         
         guard input.isReadyForMoreMediaData else { return }
         
-        // Rotate pixel buffer 90° CCW via CIImage
+        // Rotate pixel buffer 90° CCW using CIImage orientation
         let ciImage = CIImage(cvPixelBuffer: pixelBuffer)
-        let srcWidth = CGFloat(CVPixelBufferGetWidth(pixelBuffer))
-        let srcHeight = CGFloat(CVPixelBufferGetHeight(pixelBuffer))
-        
-        // 90° CCW: rotate then translate to keep in positive coordinates
-        let rotated = ciImage
-            .transformed(by: CGAffineTransform(rotationAngle: .pi / 2))
-            .transformed(by: CGAffineTransform(translationX: 0, y: srcWidth))
+        let rotated = ciImage.oriented(.left)  // 90° CCW
         
         // Render into a new pixel buffer with portrait dimensions
-        let outWidth = Int(srcHeight)
-        let outHeight = Int(srcWidth)
-        
         guard let pool = adaptor.pixelBufferPool else { return }
         var outBuffer: CVPixelBuffer?
         CVPixelBufferPoolCreatePixelBuffer(nil, pool, &outBuffer)
