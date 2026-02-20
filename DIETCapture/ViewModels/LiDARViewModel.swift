@@ -97,7 +97,7 @@ final class LiDARViewModel {
     
     func generateViewBuffer() -> CVPixelBuffer? {
         switch viewMode {
-        case .rgb:
+        case .rgb, .mesh:
             return nil  // Use ARKit captured image directly
             
         case .depth:

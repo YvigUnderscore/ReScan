@@ -9,6 +9,9 @@ import ARKit
 struct ContentView: View {
     @State private var viewModel = CaptureViewModel()
     @State private var showSplash = true
+    @State private var hasPermissions = false
+    @State private var permissionsChecked = false
+    @State private var selectedTab = 0
     
     var body: some View {
         Group {

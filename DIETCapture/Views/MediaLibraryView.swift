@@ -358,6 +358,7 @@ struct SessionDetailView: View {
         case .rgb: return session.hasVideo
         case .depth: return session.hasDepth
         case .confidence: return session.hasConfidence
+        case .mesh: return false
         }
     }
     
@@ -393,7 +394,7 @@ struct SessionDetailView: View {
         let frameName = String(format: "%06d", currentFrameIndex)
         
         switch activePass {
-        case .rgb:
+        case .rgb, .mesh:
             break
             
         case .depth:
