@@ -95,9 +95,9 @@ final class ExportService {
         
         guard input.isReadyForMoreMediaData else { return }
         
-        // Rotate 180° so phone-top (HAUT) is on left, phone-bottom (BAS) on right
+        // Horizontal flip: swap left/right so HAUT is on left, BAS on right
         let ciImage = CIImage(cvPixelBuffer: pixelBuffer)
-        let rotated = ciImage.oriented(.down)  // 180° rotation of landscape buffer
+        let rotated = ciImage.oriented(.upMirrored)  // Horizontal flip only
         
         // Render into output buffer (same landscape dimensions)
         guard let pool = adaptor.pixelBufferPool else { return }
