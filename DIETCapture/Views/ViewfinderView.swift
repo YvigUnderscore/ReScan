@@ -109,26 +109,27 @@ struct ViewfinderView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 6) {
                 ForEach(ViewMode.allCases) { mode in
-                Button {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        viewModel.lidar.viewMode = mode
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            viewModel.lidar.viewMode = mode
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: mode.icon)
+                                .font(.caption2)
+                            Text(mode.rawValue)
+                                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(
+                            viewModel.lidar.viewMode == mode
+                                ? AnyShapeStyle(LinearGradient(colors: [.cyan, .blue], startPoint: .leading, endPoint: .trailing))
+                                : AnyShapeStyle(.ultraThinMaterial)
+                        )
+                        .foregroundStyle(viewModel.lidar.viewMode == mode ? .white : .secondary)
+                        .clipShape(Capsule())
                     }
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: mode.icon)
-                            .font(.caption2)
-                        Text(mode.rawValue)
-                            .font(.system(size: 10, weight: .semibold, design: .rounded))
-                    }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(
-                        viewModel.lidar.viewMode == mode
-                            ? AnyShapeStyle(LinearGradient(colors: [.cyan, .blue], startPoint: .leading, endPoint: .trailing))
-                            : AnyShapeStyle(.ultraThinMaterial)
-                    )
-                    .foregroundStyle(viewModel.lidar.viewMode == mode ? .white : .secondary)
-                    .clipShape(Capsule())
                 }
             }
             .padding(.horizontal, 2)
