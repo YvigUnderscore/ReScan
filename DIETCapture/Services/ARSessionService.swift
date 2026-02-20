@@ -49,16 +49,42 @@ final class ARSessionService: NSObject {
         arSession.delegate = self
         
         let config = ARWorldTrackingConfiguration()
+        let settings = AppSettings.shared
         
-        // Select highest resolution video format (near-4K on Pro devices)
+        // Select resolution based on Preference
         let formats = ARWorldTrackingConfiguration.supportedVideoFormats
-        if let bestFormat = formats.max(by: {
-            let a = $0.imageResolution
-            let b = $1.imageResolution
-            return (a.width * a.height) < (b.width * b.height)
-        }) {
-            config.videoFormat = bestFormat
-            print("[ARSessionService] Selected video format: \(bestFormat.imageResolution)")
+        let selectedFormat: ARConfiguration.VideoFormat
+        
+        if settings.videoResolution == .high {
+            // Highest resolution (near-4K on Pro devices)
+            selectedFormat = formats.max(by: {
+                let a = $0.imageResolution
+                let b = $1.imageResolution
+                return (a.width * a.height) < (b.width * b.height)
+            }) ?? formats.first!
+        } else {
+            // Medium (~1080p fallback)
+            selectedFormat = formats.first(where: {
+                $0.imageResolution.height >= 1080 && $0.imageResolution.height < 1440
+            }) ?? formats.first!
+        }
+        
+        config.videoFormat = selectedFormat
+        print("[ARSessionService] Selected video format: \(selectedFormat.imageResolution)")
+        
+        // Set Frame Rate based on Preference
+        let targetFPS: Double = settings.videoFramerate == .fps60 ? 60.0 : 30.0
+        
+        // ARKit might not support the requested FPS on the chosen high-res format.
+        // If not supported, we don't force it (which would crash/fail config validation).
+        let supportedFrameRates = selectedFormat.videoSupportedFrameRateRanges
+        let supportsTargetFPS = supportedFrameRates.contains(where: {
+            $0.minFrameRate <= targetFPS && $0.maxFrameRate >= targetFPS
+        })
+        
+        if supportsTargetFPS {
+            config.videoFormat = selectedFormat // It's strictly defined by the format, ARKit doesn't have a specific `frameRate` setting on config directly, but videoFormats dictate frame rates.
+            // Note: ARKit typically uses max frame rate of the selected format.
         }
         
         // Scene depth (LiDAR)

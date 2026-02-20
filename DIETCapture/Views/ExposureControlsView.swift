@@ -81,7 +81,7 @@ struct GlassSettingsSheet: View {
                     }
                 }
                 .padding(.horizontal, 16)
-                .padding(.bottom, 20)
+                .padding(.bottom, 36) // Increased bottom padding to prevent overflow
             }
         }
         .background(
@@ -129,14 +129,22 @@ struct ExposureControlsView: View {
         GlassCard {
             VStack(spacing: 14) {
                 // Mode Toggle
-                GlassSegmentedPicker(
-                    label: "Mode",
-                    selection: Binding(
+                HStack {
+                    Text("Mode")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Picker("Mode", selection: Binding(
                         get: { viewModel.settings.exposureMode },
                         set: { viewModel.setExposureMode($0) }
-                    ),
-                    options: ExposureMode.allCases
-                )
+                    )) {
+                        ForEach(ExposureMode.allCases) { mode in
+                            Text(mode.rawValue).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(maxWidth: 200)
+                }
                 
                 // Shutter Presets (Manual only)
                 if viewModel.settings.exposureMode == .manual {
@@ -202,14 +210,22 @@ struct FocusControlsView: View {
     var body: some View {
         GlassCard {
             VStack(spacing: 14) {
-                GlassSegmentedPicker(
-                    label: "Mode",
-                    selection: Binding(
+                HStack {
+                    Text("Mode")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Picker("Mode", selection: Binding(
                         get: { viewModel.settings.focusMode },
                         set: { viewModel.setFocusMode($0) }
-                    ),
-                    options: FocusMode.allCases
-                )
+                    )) {
+                        ForEach(FocusMode.allCases) { mode in
+                            Text(mode.rawValue).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(maxWidth: 200)
+                }
                 
                 GlassSlider(
                     label: "Position",
@@ -336,6 +352,8 @@ struct GlassPill: View {
                 .font(.system(size: 11, weight: .medium, design: .monospaced))
                 .padding(.horizontal, 12)
                 .padding(.vertical, 7)
+                .frame(minWidth: 44) // Improve tap target
+                .contentShape(Rectangle()) // Ensure entire area is clickable
                 .background(
                     isSelected
                         ? AnyShapeStyle(LinearGradient(
@@ -352,6 +370,7 @@ struct GlassPill: View {
                         : Capsule().strokeBorder(.white.opacity(0.06), lineWidth: 0.5)
                 )
         }
+        .buttonStyle(.plain) // Prevent ScrollView from eating touches
     }
 }
 
@@ -383,28 +402,6 @@ struct GlassSlider: View {
                 )
                 .disabled(!isEnabled)
                 .opacity(isEnabled ? 1.0 : 0.35)
-        }
-    }
-}
-
-struct GlassSegmentedPicker<T: CaseIterable & Identifiable & Hashable & RawRepresentable>: View where T.RawValue == String {
-    let label: String
-    @Binding var selection: T
-    let options: [T]
-    
-    var body: some View {
-        HStack {
-            Text(label)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(.secondary)
-            Spacer()
-            Picker(label, selection: $selection) {
-                ForEach(options, id: \.self) { option in
-                    Text(option.rawValue).tag(option)
-                }
-            }
-            .pickerStyle(.segmented)
-            .frame(maxWidth: 200)
         }
     }
 }

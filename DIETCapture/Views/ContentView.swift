@@ -8,13 +8,14 @@ import ARKit
 
 struct ContentView: View {
     @State private var viewModel = CaptureViewModel()
-    @State private var hasPermissions = false
-    @State private var permissionsChecked = false
-    @State private var selectedTab = 0
+    @State private var showSplash = true
     
     var body: some View {
         Group {
-            if !permissionsChecked {
+            if showSplash {
+                SplashScreenView()
+                    .transition(.opacity)
+            } else if !permissionsChecked {
                 loadingView
             } else if !viewModel.camera.capabilities.hasLiDAR {
                 noLiDARView
@@ -35,13 +36,28 @@ struct ContentView: View {
                             Text("Library")
                         }
                         .tag(1)
+                        
+                    SettingsView()
+                        .tabItem {
+                            Image(systemName: "gear")
+                            Text("Settings")
+                        }
+                        .tag(2)
                 }
                 .tint(.cyan)
                 .preferredColorScheme(.dark)
             }
         }
         .task {
-            await checkPermissions()
+            // Check permissions and keep splash screen visible for at least 2.2 seconds for animation
+            async let authDelay: () = Task.sleep(nanoseconds: 2_200_000_000)
+            async let authCheck: () = checkPermissions()
+            
+            _ = await (try? authDelay, authCheck)
+            
+            withAnimation(.easeInOut(duration: 0.4)) {
+                showSplash = false
+            }
         }
     }
     

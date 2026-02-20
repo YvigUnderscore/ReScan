@@ -85,6 +85,7 @@ enum ViewMode: String, CaseIterable, Identifiable {
     case rgb = "RGB"
     case depth = "Depth"
     case confidence = "Conf"
+    case mesh = "Mesh"
     
     var id: String { rawValue }
     
@@ -93,6 +94,7 @@ enum ViewMode: String, CaseIterable, Identifiable {
         case .rgb: return "camera.fill"
         case .depth: return "cube.fill"
         case .confidence: return "checkmark.shield.fill"
+        case .mesh: return "move.3d"
         }
     }
 }

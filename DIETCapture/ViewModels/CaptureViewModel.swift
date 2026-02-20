@@ -55,6 +55,14 @@ final class CaptureViewModel {
         lidar.start()
         session.updateStorageInfo()
         
+        // Apply User Defaults
+        let defaults = AppSettings.shared
+        lidar.settings.maxDistance = Float(defaults.defaultMaxDistance)
+        if let conf = ConfidenceThreshold(rawValue: defaults.defaultConfidence) {
+            lidar.settings.confidenceThreshold = conf
+        }
+        lidar.settings.smoothingEnabled = defaults.defaultSmoothing
+        
         // Attach camera controls to ARKit's device
         camera.setup(device: lidar.arService.captureDevice)
         

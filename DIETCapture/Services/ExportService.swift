@@ -51,8 +51,8 @@ final class ExportService {
         
         let input = AVAssetWriterInput(mediaType: .video, outputSettings: videoSettings)
         input.expectsMediaDataInRealTime = true
-        // ARKit capturedImage is landscape-right, rotate 90° for portrait video
-        input.transform = CGAffineTransform(rotationAngle: .pi / 2)
+        // ARKit capturedImage is landscape-right, rotate 90° anti-clockwise for portrait video
+        input.transform = CGAffineTransform(rotationAngle: -.pi / 2)
         
         let sourceAttributes: [String: Any] = [
             kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,

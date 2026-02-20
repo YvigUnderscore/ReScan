@@ -48,6 +48,13 @@ struct ViewfinderView: View {
                             }
                     }
                     
+                    // Mesh Overlay (when viewing mesh)
+                    if viewModel.lidar.viewMode == .mesh {
+                        ARMeshOverlayView(session: viewModel.lidar.arService.arSession)
+                            .clipShape(RoundedRectangle(cornerRadius: 20))
+                            .allowsHitTesting(false) // Let touches pass through
+                    }
+                    
                     // Pass viewer buttons (top-right)
                     VStack {
                         HStack {

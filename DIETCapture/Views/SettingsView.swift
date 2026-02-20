@@ -1,82 +1,95 @@
 // SettingsView.swift
 // ReScan
 //
-// Settings screen accessible from Controls panel. Simplified for Stray Scanner export.
+// Global app settings for export formats, resolution, defaults.
 
 import SwiftUI
 
 struct SettingsView: View {
-    @Bindable var viewModel: CaptureViewModel
+    @StateObject private var settings = AppSettings.shared
+    @Environment(\.dismiss) private var dismiss
     
     var body: some View {
         NavigationStack {
-            List {
-                Section("LiDAR") {
-                    HStack {
-                        Text("Max Distance")
-                        Spacer()
-                        Text("\(viewModel.settings.lidar.maxDistance, specifier: "%.1f")m")
-                            .foregroundStyle(.secondary)
-                    }
-                    Slider(
-                        value: $viewModel.settings.lidar.maxDistance,
-                        in: LiDARSettings.distanceRange,
-                        step: 0.1
-                    )
-                    .tint(.cyan)
-                    
-                    Picker("Confidence", selection: $viewModel.settings.lidar.confidenceThreshold) {
-                        ForEach(ConfidenceThreshold.allCases) { level in
-                            Text(level.label).tag(level)
+            Form {
+                Section {
+                    Picker("Resolution", selection: $settings.videoResolution) {
+                        ForEach(AppSettings.VideoResolution.allCases) { res in
+                            Text(res.rawValue).tag(res)
                         }
                     }
                     
-                    Toggle("Depth Smoothing", isOn: $viewModel.settings.lidar.smoothingEnabled)
+                    Picker("Framerate", selection: $settings.videoFramerate) {
+                        ForEach(AppSettings.VideoFramerate.allCases) { fps in
+                            Text(fps.rawValue).tag(fps)
+                        }
+                    }
+                } header: {
+                    Text("Video Recording")
+                } footer: {
+                    Text("ARKit restricts available resolutions and framerates. 'Highest Available' attempts to select near-4K on Pro iPhones. Framerate will fallback to 60fps if 30fps is unsupported by the format.")
+                }
+                
+                Section {
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            Text("Max Distance")
+                            Spacer()
+                            Text("\(settings.defaultMaxDistance, specifier: "%.1f")m")
+                                .foregroundStyle(.secondary)
+                        }
+                        Slider(value: $settings.defaultMaxDistance, in: 0.5...5.0, step: 0.1)
+                            .tint(.cyan)
+                    }
+                    .padding(.vertical, 4)
+                    
+                    Picker("Confidence", selection: $settings.defaultConfidence) {
+                        Text("Low").tag(0)
+                        Text("Medium").tag(1)
+                        Text("High").tag(2)
+                    }
+                    
+                    Toggle("Smooth Depth", isOn: $settings.defaultSmoothing)
                         .tint(.cyan)
+                } header: {
+                    Text("LiDAR Defaults")
+                } footer: {
+                    Text("These values reset your LiDAR controls on app launch.")
                 }
                 
-                Section("Export") {
-                    HStack {
-                        Image(systemName: "doc.text.fill")
-                            .foregroundStyle(.cyan)
-                        Text("Stray Scanner Format")
-                    }
-                    
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Output files:")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Group {
-                            Label("rgb.mp4", systemImage: "video.fill")
-                            Label("camera_matrix.csv", systemImage: "camera.metering.matrix")
-                            Label("odometry.csv", systemImage: "location.fill")
-                            Label("depth/*.png (16-bit mm)", systemImage: "cube.fill")
-                            Label("confidence/*.png", systemImage: "checkmark.shield.fill")
-                        }
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                    }
-                }
-                
-                Section("About") {
-                    HStack {
-                        Text("ReScan")
-                            .fontWeight(.semibold)
-                        Spacer()
-                        Text("v1.0")
-                            .foregroundStyle(.secondary)
-                    }
+                Section {
                     HStack {
                         Text("Format")
                         Spacer()
-                        Text("Stray Scanner Compatible")
+                        Text("Stray Scanner")
                             .foregroundStyle(.secondary)
-                            .font(.caption)
                     }
+                    HStack {
+                        Text("Directory Structure")
+                        Spacer()
+                    }
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("• rgb.mp4").font(.caption).foregroundStyle(.secondary)
+                        Text("• camera_matrix.csv").font(.caption).foregroundStyle(.secondary)
+                        Text("• odometry.csv").font(.caption).foregroundStyle(.secondary)
+                        Text("• depth/ (16-bit PNG mm)").font(.caption).foregroundStyle(.secondary)
+                        Text("• confidence/ (8-bit PNG)").font(.caption).foregroundStyle(.secondary)
+                    }
+                } header: {
+                    Text("Export Options")
+                } footer: {
+                    Text("ReScan natively exports to the Stray Scanner format, ready for strayscanner-to-colmap processing.")
                 }
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") { dismiss() }
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.cyan)
+                }
+            }
         }
         .preferredColorScheme(.dark)
     }
