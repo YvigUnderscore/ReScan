@@ -53,27 +53,24 @@ final class ARSessionService: NSObject {
         
         // Select resolution based on Preference
         let formats = ARWorldTrackingConfiguration.supportedVideoFormats
-        let selectedFormat: ARConfiguration.VideoFormat
-        
-        if settings.videoResolution == .high {
-            // Highest resolution (near-4K on Pro devices)
-        // Set Frame Rate based on Preference
+        var selectedFormat: ARConfiguration.VideoFormat
         let targetFPS = settings.videoFramerate == .fps60 ? 60 : 30
         
         if settings.videoResolution == .high {
             // Highest resolution matching target FPS
             selectedFormat = formats.filter({ $0.framesPerSecond == targetFPS })
-                .max(by: { ($0.imageResolution.width * $0.imageResolution.height) < ($1.imageResolution.width * $1.imageResolution.height) }) 
+                .max(by: { ($0.imageResolution.width * $0.imageResolution.height) < ($1.imageResolution.width * $1.imageResolution.height) })
                 ?? formats.max(by: { ($0.imageResolution.width * $0.imageResolution.height) < ($1.imageResolution.width * $1.imageResolution.height) })!
         } else {
-            // Medium matching target FPS
+            // Medium (~1080p) matching target FPS
             selectedFormat = formats.filter({ $0.framesPerSecond == targetFPS })
-                .first(where: { $0.imageResolution.height >= 1080 && $0.imageResolution.height < 1440 }) 
-                ?? formats.first(where: { $0.imageResolution.height >= 1080 && $0.imageResolution.height < 1440 }) 
+                .first(where: { $0.imageResolution.height >= 1080 && $0.imageResolution.height < 1440 })
+                ?? formats.first(where: { $0.imageResolution.height >= 1080 && $0.imageResolution.height < 1440 })
                 ?? formats.first!
         }
         
         config.videoFormat = selectedFormat
+        print("[ARSessionService] Selected format: \(selectedFormat.imageResolution) @ \(selectedFormat.framesPerSecond)fps")
         
         // Scene depth (LiDAR)
         if ARWorldTrackingConfiguration.supportsFrameSemantics(.sceneDepth) {
