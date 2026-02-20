@@ -41,16 +41,14 @@ final class ExportService {
     private let ciContext = CIContext()
     
     func startVideoRecording(to url: URL, width: Int, height: Int) throws {
-        // Video file stores portrait-oriented pixels (swapped dimensions)
-        let portraitWidth = height
-        let portraitHeight = width
-        
+        // Video file stores landscape pixels rotated 180° from ARKit's landscape-right
+        // Result: HAUT (phone top) on left, BAS (phone bottom) on right
         let writer = try AVAssetWriter(url: url, fileType: .mp4)
         
         let videoSettings: [String: Any] = [
             AVVideoCodecKey: AVVideoCodecType.hevc,
-            AVVideoWidthKey: portraitWidth,
-            AVVideoHeightKey: portraitHeight,
+            AVVideoWidthKey: width,
+            AVVideoHeightKey: height,
             AVVideoCompressionPropertiesKey: [
                 AVVideoAverageBitRateKey: 20_000_000,
                 AVVideoProfileLevelKey: kVTProfileLevel_HEVC_Main_AutoLevel,
@@ -59,12 +57,11 @@ final class ExportService {
         
         let input = AVAssetWriterInput(mediaType: .video, outputSettings: videoSettings)
         input.expectsMediaDataInRealTime = true
-        // No display transform needed — pixels are already rotated
         
         let sourceAttributes: [String: Any] = [
             kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
-            kCVPixelBufferWidthKey as String: portraitWidth,
-            kCVPixelBufferHeightKey as String: portraitHeight
+            kCVPixelBufferWidthKey as String: width,
+            kCVPixelBufferHeightKey as String: height
         ]
         
         let adaptor = AVAssetWriterInputPixelBufferAdaptor(
@@ -98,11 +95,11 @@ final class ExportService {
         
         guard input.isReadyForMoreMediaData else { return }
         
-        // Rotate pixel buffer 90° CCW using CIImage orientation
+        // Rotate 180° so phone-top (HAUT) is on left, phone-bottom (BAS) on right
         let ciImage = CIImage(cvPixelBuffer: pixelBuffer)
-        let rotated = ciImage.oriented(.right)  // Portrait orientation from landscape-right
+        let rotated = ciImage.oriented(.down)  // 180° rotation of landscape buffer
         
-        // Render into a new pixel buffer with portrait dimensions
+        // Render into output buffer (same landscape dimensions)
         guard let pool = adaptor.pixelBufferPool else { return }
         var outBuffer: CVPixelBuffer?
         CVPixelBufferPoolCreatePixelBuffer(nil, pool, &outBuffer)
