@@ -4,7 +4,7 @@
 ![Platform](https://img.shields.io/badge/iOS-17.0+-white?logo=apple)
 ![License](https://img.shields.io/badge/License-CC%20BY--NC%204.0-lightgrey.svg)
 
-**ReScan** is an advanced iOS application designed for high-fidelity 3D scanning and photogrammetry. It seamlessly captures synchronized LiDAR depth data, confidence maps, camera tracking (odometry), and high-resolution RGB video. It natively exports data in the **Stray Scanner format**, making it instantly compatible with popular SfM (Structure from Motion) and Gaussian Splatting pipelines like COLMAP and DIET_SfM.
+**ReScan** is an advanced iOS application designed for high-fidelity 3D scanning and photogrammetry. It seamlessly captures synchronized LiDAR depth data, confidence maps, camera tracking (odometry), and high-resolution RGB video. It natively exports data in the **Stray Scanner format**, making it instantly compatible with popular SfM (Structure from Motion) and Gaussian Splatting pipelines like COLMAP/GLOMAP. I will soon publish a full pipeline from point cloud generation to Gaussian Splatting using SOTA technologies like Hloc, Glomap, Lightglue, etc.
 
 ---
 
@@ -12,8 +12,8 @@
 
 - **Professional Camera Controls**: 
   - Manual Exposure (Shutter Speed, ISO, EV Compensation) 
-  - Manual Focus with Peaking overlay
-  - Custom Capture FPS (1 to 60 FPS) via frame subsampling for efficient photogrammetry
+  - Manual Focus.
+  - Custom Capture FPS (1 to 60 FPS) via frame subsampling for efficient photogrammetry (Datas are recorded at 60 FPS and then subsampled during the recording process)
 - **High-End Video Formats**: 
   - **Apple Log (ProRes 422 HQ)** recording for maximum color grading flexibility (requires iPhone 15 Pro or newer)
   - HDR HEVC & Standard HEVC for efficient storage
@@ -26,34 +26,44 @@
 
 ## 🚀 Installation
 
-Because ReScan uses advanced ARKit and AVFoundation capabilities, it must be sideloaded onto your iOS device using Xcode or a tool like AltStore.
+ReScan uses advanced ARKit and AVFoundation capabilities, so it must be sideloaded onto your iOS device.
+
+To make things **extremely easy and turnkey**, we provide automated installation scripts to set up AltStore and sideload the app on Windows and Linux.
 
 ### Prerequisites
-- A Mac with **Xcode 15+** installed.
 - An iOS device with a **LiDAR scanner** (iPhone 12 Pro or newer, iPad Pro 2020 or newer).
 - iOS/iPadOS **17.0** or later.
+- The `ReScan.ipa` file (download from Releases or build yourself).
 
-### Build via Xcode (Free Developer Account)
-1. **Clone the repository**:
+---
+
+### Method 1: Turnkey Installation (Windows & Linux)
+
+**For Windows Users:**
+We provide a 1-click PowerShell script that automatically downloads AltServer and opens the direct download links for its Apple dependencies.
+1. Right-click on `install_altstore.ps1` and select **Run with PowerShell**.
+2. The script will guide you to install iTunes and iCloud (direct versions, not Microsoft Store).
+3. It will automatically download, extract, and launch the AltServer installer.
+4. Once installed, launch AltServer, connect your iPhone, and use it to sideload the ReScan IPA!
+
+**For Linux Users:**
+We provide an automated bash script that installs all necessary dependencies (`usbmuxd`, `libimobiledevice`), downloads AltServer-Linux, and pairs your device.
+1. Open a terminal and run the script:
    ```bash
-   git clone https://github.com/YvigUnderscore/ReScan.git
-   cd ReScan
+   chmod +x install_altstore.sh
+   ./install_altstore.sh
    ```
-2. **Open the project**: Open `ReScan.xcodeproj` (or run `xcodegen` if using the `project.yml` file to generate the project).
-3. **Configure Signing**:
-   - Go to the project settings by clicking the `ReScan` target.
-   - Select the **Signing & Capabilities** tab.
-   - Check "Automatically manage signing".
-   - Select your Personal Team from the Team dropdown (you may need to sign in with your Apple ID in Xcode Settings > Accounts).
-   - Change the **Bundle Identifier** to something unique (e.g., `com.yourname.ReScan`).
-4. **Deploy**:
-   - Connect your iPhone/iPad to your Mac via USB.
-   - Select your device from the run destination menu at the top of Xcode.
-   - Press **Cmd + R** (or the Play button) to build and run.
-5. **Trust the Developer**:
-   - On your device, go to **Settings > General > VPN & Device Management**.
-   - Tap your Apple ID under "Developer App" and select "Trust".
-   - The app should now launch!
+2. Follow the on-screen instructions. The script will find the IPA in the folder and can install it directly via USB, or start Server Mode for installation directly from your phone.
+
+---
+
+### Method 2: Build via Xcode (Mac / Developers)
+If you are on a Mac, you can easily deploy it using Xcode (Free Developer Account):
+1. **Clone the repository**: `git clone https://github.com/YvigUnderscore/ReScan.git`
+2. **Open**: `ReScan.xcodeproj`.
+3. **Configure Signing**: In the Project settings -> Target `ReScan` -> Signing & Capabilities, select your Personal Team and change the Bundle Identifier.
+4. **Deploy**: Connect your iPhone, hit **Cmd + R** to run.
+5. **Trust the Developer**: On your device, go to **Settings > General > VPN & Device Management**, tap your Apple ID and select "Trust".
 
 *Note: With a free Apple Developer account, apps expire after 7 days and need to be re-deployed.*
 
