@@ -47,7 +47,6 @@ final class ExportService {
             if let device = device {
                 // Check if any format supports ProRes codec
                 for format in device.formats {
-                    let codecTypes = format.supportedColorSpaces
                     // Check for Apple Log color space support
                     if format.supportedColorSpaces.contains(.appleLog) {
                         return true
