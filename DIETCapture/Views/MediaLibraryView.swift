@@ -184,8 +184,8 @@ struct SessionCardView: View {
     // MARK: - Thumbnail Generation
     
     private func generateThumbnail(for session: RecordedSession) async -> UIImage? {
-        let videoURL = session.directory.appendingPathComponent("rgb.mp4")
-        guard FileManager.default.fileExists(atPath: videoURL.path) else { return nil }
+        let videoURL = Self.findVideoURL(in: session.directory)
+        guard let videoURL = videoURL else { return nil }
         
         let asset = AVAsset(url: videoURL)
         let generator = AVAssetImageGenerator(asset: asset)
@@ -418,10 +418,18 @@ struct SessionDetailView: View {
     }
     
     private func setupVideoPlayer() {
-        let videoURL = session.directory.appendingPathComponent("rgb.mp4")
-        if FileManager.default.fileExists(atPath: videoURL.path) {
+        if let videoURL = Self.findVideoURL(in: session.directory) {
             player = AVPlayer(url: videoURL)
         }
+    }
+    
+    /// Find the video file in a session directory (supports both .mp4 and .mov)
+    private static func findVideoURL(in directory: URL) -> URL? {
+        let mp4 = directory.appendingPathComponent("rgb.mp4")
+        if FileManager.default.fileExists(atPath: mp4.path) { return mp4 }
+        let mov = directory.appendingPathComponent("rgb.mov")
+        if FileManager.default.fileExists(atPath: mov.path) { return mov }
+        return nil
     }
     
     // MARK: - Share

@@ -2,6 +2,7 @@
 // ReScan
 //
 // Orchestrates recording: ARKit frames → Stray Scanner format export.
+// Handles FPS subsampling — ARKit runs at native rate, only selected frames are captured.
 
 import Foundation
 import AVFoundation
@@ -40,6 +41,9 @@ final class CaptureViewModel {
     var elapsedTimeString: String { session.elapsedTime.recordingDurationString }
     var frameCountString: String { "\(session.frameCount)" }
     
+    // Active encoding mode (resolved at recording start)
+    var activeEncodingMode: VideoEncodingMode = .standardHEVC
+    
     // Timer
     private var recordingTimer: Timer?
     
@@ -48,6 +52,17 @@ final class CaptureViewModel {
     
     // Intrinsics saved flag
     private var intrinsicsSaved = false
+    
+    // FPS subsampling
+    private var lastCaptureTimestamp: TimeInterval = -1
+    private var captureInterval: TimeInterval = 1.0 / 30.0 // Default 30fps
+    
+    // MARK: - Computed
+    
+    /// Whether Apple Log (ProRes) is available on this device
+    var supportsAppleLog: Bool {
+        ExportService.supportsAppleLog
+    }
     
     // MARK: - Setup
     
@@ -79,10 +94,39 @@ final class CaptureViewModel {
         recordingTimer?.invalidate()
     }
     
+    // MARK: - Encoding Mode Resolution
+    
+    /// Determines the actual encoding mode based on settings and device capabilities
+    private func resolveEncodingMode() -> VideoEncodingMode {
+        let settings = AppSettings.shared
+        
+        if settings.useAppleLog {
+            if supportsAppleLog {
+                return .appleLog
+            } else {
+                print("[CaptureVM] Apple Log not supported on this device, falling back to HDR HEVC")
+                return settings.enableHDR ? .hdrHEVC : .standardHEVC
+            }
+        } else if settings.enableHDR {
+            return .hdrHEVC
+        } else {
+            return .standardHEVC
+        }
+    }
+    
     // MARK: - Recording
     
     func startRecording() {
         do {
+            // Resolve encoding mode
+            activeEncodingMode = resolveEncodingMode()
+            session.encodingMode = activeEncodingMode
+            
+            // Set capture FPS interval
+            let appSettings = AppSettings.shared
+            captureInterval = appSettings.captureFPS.captureInterval
+            lastCaptureTimestamp = -1
+            
             let sessionDir = try session.createSessionDirectory()
             session.startRecording()
             intrinsicsSaved = false
@@ -102,6 +146,8 @@ final class CaptureViewModel {
             if storageAvailableMB < 1024 {
                 showError(message: "⚠️ Less than 1 GB storage remaining")
             }
+            
+            print("[CaptureVM] Recording started — \(appSettings.captureFPS.label), encoding: \(activeEncodingMode.label)")
             
         } catch {
             showError(message: "Failed to create session: \(error.localizedDescription)")
@@ -137,8 +183,18 @@ final class CaptureViewModel {
     private func handleARFrame(_ frame: ARFrame) {
         guard session.state == .recording else { return }
         
-        let frameIndex = session.frameCount
         let timestamp = frame.timestamp
+        
+        // FPS subsampling: skip frames that are too close together
+        if lastCaptureTimestamp >= 0 {
+            let elapsed = timestamp - lastCaptureTimestamp
+            if elapsed < captureInterval * 0.9 { // 0.9 factor for tolerance
+                return
+            }
+        }
+        lastCaptureTimestamp = timestamp
+        
+        let frameIndex = session.frameCount
         let pose = frame.camera.transform
         let intrinsics = frame.camera.intrinsics
         let capturedImage = frame.capturedImage
@@ -155,7 +211,12 @@ final class CaptureViewModel {
             let height = CVPixelBufferGetHeight(capturedImage)
             if let videoURL = session.videoURL {
                 do {
-                    try exportService.startVideoRecording(to: videoURL, width: width, height: height)
+                    try exportService.startVideoRecording(
+                        to: videoURL,
+                        width: width,
+                        height: height,
+                        encodingMode: activeEncodingMode
+                    )
                 } catch {
                     print("[CaptureVM] Video start error: \(error)")
                 }

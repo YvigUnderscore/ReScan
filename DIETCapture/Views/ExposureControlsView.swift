@@ -195,7 +195,7 @@ struct ExposureControlsView: View {
                         set: { viewModel.updateEV(sliderValue: $0) }
                     ),
                     displayValue: viewModel.evDisplay,
-                    isEnabled: viewModel.settings.exposureMode == .auto
+                    isEnabled: true // EV compensation works in all modes
                 )
             }
         }

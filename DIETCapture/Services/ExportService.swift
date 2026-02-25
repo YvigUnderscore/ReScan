@@ -2,7 +2,7 @@
 // ReScan
 //
 // Stray Scanner format export: depth maps (16-bit PNG mm), confidence maps,
-// video recording via AVAssetWriter, camera_matrix.csv, odometry.csv.
+// video recording via AVAssetWriter (ProRes/Apple Log or HEVC), camera_matrix.csv, odometry.csv.
 
 import Foundation
 import AVFoundation
@@ -30,34 +30,106 @@ final class ExportService {
     private var pixelBufferAdaptor: AVAssetWriterInputPixelBufferAdaptor?
     private var videoStartTime: CMTime?
     private var isWritingVideo = false
+    private var currentEncodingMode: VideoEncodingMode = .standardHEVC
     
     // MARK: - Odometry CSV
     
     private var odometryFileHandle: FileHandle?
     private var hasWrittenOdometryHeader = false
     
+    // MARK: - Device Capability Check
+    
+    /// Check if the device supports Apple Log (ProRes) recording
+    static var supportsAppleLog: Bool {
+        // Apple Log with ProRes is available on iPhone 15 Pro and later
+        if #available(iOS 17.0, *) {
+            let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back)
+            if let device = device {
+                // Check if any format supports ProRes codec
+                for format in device.formats {
+                    let codecTypes = format.supportedColorSpaces
+                    // Check for Apple Log color space support
+                    if format.supportedColorSpaces.contains(.appleLog) {
+                        return true
+                    }
+                }
+            }
+        }
+        return false
+    }
+    
     // MARK: - Video Recording
     
-    func startVideoRecording(to url: URL, width: Int, height: Int) throws {
-        // Video file stores landscape pixels rotated 180° from ARKit's landscape-right
-        // Result: HAUT (phone top) on left, BAS (phone bottom) on right
-        let writer = try AVAssetWriter(url: url, fileType: .mp4)
+    func startVideoRecording(to url: URL, width: Int, height: Int, encodingMode: VideoEncodingMode) throws {
+        currentEncodingMode = encodingMode
         
-        let videoSettings: [String: Any] = [
-            AVVideoCodecKey: AVVideoCodecType.hevc,
-            AVVideoWidthKey: width,
-            AVVideoHeightKey: height,
-            AVVideoCompressionPropertiesKey: [
-                AVVideoAverageBitRateKey: 20_000_000,
-                AVVideoProfileLevelKey: kVTProfileLevel_HEVC_Main_AutoLevel,
+        let fileType: AVFileType
+        let videoSettings: [String: Any]
+        let sourcePixelFormat: OSType
+        
+        switch encodingMode {
+        case .appleLog:
+            // ProRes 422 HQ — visually lossless, Apple Log color space
+            fileType = .mov
+            sourcePixelFormat = kCVPixelFormatType_422YpCbCr10BiPlanarVideoRange
+            
+            videoSettings = [
+                AVVideoCodecKey: AVVideoCodecType.proRes422HQ,
+                AVVideoWidthKey: width,
+                AVVideoHeightKey: height,
+                AVVideoColorPropertiesKey: [
+                    AVVideoColorPrimariesKey: AVVideoColorPrimaries_ITU_R_2020,
+                    AVVideoTransferFunctionKey: AVVideoTransferFunction_Linear,
+                    AVVideoYCbCrMatrixKey: AVVideoYCbCrMatrix_ITU_R_2020,
+                ]
             ]
-        ]
+            print("[ExportService] Starting ProRes 422 HQ recording (Apple Log)")
+            
+        case .hdrHEVC:
+            // HDR HEVC — good quality with HDR metadata
+            fileType = .mp4
+            sourcePixelFormat = kCVPixelFormatType_32BGRA
+            
+            videoSettings = [
+                AVVideoCodecKey: AVVideoCodecType.hevc,
+                AVVideoWidthKey: width,
+                AVVideoHeightKey: height,
+                AVVideoCompressionPropertiesKey: [
+                    AVVideoAverageBitRateKey: 40_000_000, // Higher bitrate for HDR
+                    AVVideoProfileLevelKey: kVTProfileLevel_HEVC_Main10_AutoLevel,
+                ],
+                AVVideoColorPropertiesKey: [
+                    AVVideoColorPrimariesKey: AVVideoColorPrimaries_ITU_R_2020,
+                    AVVideoTransferFunctionKey: AVVideoTransferFunction_ITU_R_2100_HLG,
+                    AVVideoYCbCrMatrixKey: AVVideoYCbCrMatrix_ITU_R_2020,
+                ]
+            ]
+            print("[ExportService] Starting HDR HEVC recording")
+            
+        case .standardHEVC:
+            // Standard HEVC — compressed, smaller files
+            fileType = .mp4
+            sourcePixelFormat = kCVPixelFormatType_32BGRA
+            
+            videoSettings = [
+                AVVideoCodecKey: AVVideoCodecType.hevc,
+                AVVideoWidthKey: width,
+                AVVideoHeightKey: height,
+                AVVideoCompressionPropertiesKey: [
+                    AVVideoAverageBitRateKey: 20_000_000,
+                    AVVideoProfileLevelKey: kVTProfileLevel_HEVC_Main_AutoLevel,
+                ]
+            ]
+            print("[ExportService] Starting standard HEVC recording")
+        }
+        
+        let writer = try AVAssetWriter(url: url, fileType: fileType)
         
         let input = AVAssetWriterInput(mediaType: .video, outputSettings: videoSettings)
         input.expectsMediaDataInRealTime = true
         
         let sourceAttributes: [String: Any] = [
-            kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
+            kCVPixelBufferPixelFormatTypeKey as String: sourcePixelFormat,
             kCVPixelBufferWidthKey as String: width,
             kCVPixelBufferHeightKey as String: height
         ]

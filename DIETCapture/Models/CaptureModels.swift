@@ -99,6 +99,25 @@ enum ViewMode: String, CaseIterable, Identifiable {
     }
 }
 
+// MARK: - Video Encoding Mode
+
+enum VideoEncodingMode: String, CaseIterable, Identifiable {
+    case appleLog = "Apple Log (ProRes)"
+    case hdrHEVC = "HDR HEVC"
+    case standardHEVC = "HEVC"
+    
+    var id: String { rawValue }
+    
+    var fileExtension: String {
+        switch self {
+        case .appleLog: return "mov"
+        case .hdrHEVC, .standardHEVC: return "mp4"
+        }
+    }
+    
+    var label: String { rawValue }
+}
+
 // MARK: - Lens Selection
 
 enum LensType: String, CaseIterable, Identifiable {

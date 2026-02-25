@@ -12,7 +12,15 @@ final class AppSettings: ObservableObject {
     // MARK: - Video Settings
     
     @AppStorage("videoResolution") var videoResolution: VideoResolution = .high
-    @AppStorage("videoFramerate") var videoFramerate: VideoFramerate = .fps60
+    
+    /// Capture FPS — frames saved to disk per second (ARKit still runs at native rate for tracking)
+    @AppStorage("captureFPS") var captureFPS: CaptureFPS = .fps30
+    
+    /// Apple Log (ProRes HQ) — only available on iPhone 15 Pro+
+    @AppStorage("useAppleLog") var useAppleLog: Bool = false
+    
+    /// HDR video capture
+    @AppStorage("enableHDR") var enableHDR: Bool = true
     
     // MARK: - LiDAR Defaults
     
@@ -26,9 +34,22 @@ final class AppSettings: ObservableObject {
         var id: String { rawValue }
     }
     
-    enum VideoFramerate: String, CaseIterable, Identifiable {
-        case fps30 = "30 FPS"
-        case fps60 = "60 FPS"
-        var id: String { rawValue }
+    enum CaptureFPS: Int, CaseIterable, Identifiable {
+        case fps60 = 60
+        case fps30 = 30
+        case fps15 = 15
+        case fps10 = 10
+        case fps5 = 5
+        case fps2 = 2
+        case fps1 = 1
+        
+        var id: Int { rawValue }
+        
+        var label: String { "\(rawValue) FPS" }
+        
+        /// Minimum interval in seconds between captured frames
+        var captureInterval: TimeInterval {
+            return 1.0 / Double(rawValue)
+        }
     }
 }

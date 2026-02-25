@@ -51,19 +51,19 @@ final class ARSessionService: NSObject {
         let config = ARWorldTrackingConfiguration()
         let settings = AppSettings.shared
         
-        // Select resolution based on Preference
+        // Select resolution — always use 30fps for ARKit (best tracking stability)
+        // Actual capture FPS is handled by frame subsampling in CaptureViewModel
         let formats = ARWorldTrackingConfiguration.supportedVideoFormats
         var selectedFormat: ARConfiguration.VideoFormat
-        let targetFPS = settings.videoFramerate == .fps60 ? 60 : 30
         
         if settings.videoResolution == .high {
-            // Highest resolution matching target FPS
-            selectedFormat = formats.filter({ $0.framesPerSecond == targetFPS })
+            // Highest resolution at 30fps
+            selectedFormat = formats.filter({ $0.framesPerSecond == 30 })
                 .max(by: { ($0.imageResolution.width * $0.imageResolution.height) < ($1.imageResolution.width * $1.imageResolution.height) })
                 ?? formats.max(by: { ($0.imageResolution.width * $0.imageResolution.height) < ($1.imageResolution.width * $1.imageResolution.height) })!
         } else {
-            // Medium (~1080p) matching target FPS
-            selectedFormat = formats.filter({ $0.framesPerSecond == targetFPS })
+            // Medium (~1080p) at 30fps
+            selectedFormat = formats.filter({ $0.framesPerSecond == 30 })
                 .first(where: { $0.imageResolution.height >= 1080 && $0.imageResolution.height < 1440 })
                 ?? formats.first(where: { $0.imageResolution.height >= 1080 && $0.imageResolution.height < 1440 })
                 ?? formats.first!
@@ -71,6 +71,16 @@ final class ARSessionService: NSObject {
         
         config.videoFormat = selectedFormat
         print("[ARSessionService] Selected format: \(selectedFormat.imageResolution) @ \(selectedFormat.framesPerSecond)fps")
+        
+        // HDR support (iOS 16+)
+        if settings.enableHDR {
+            if selectedFormat.isVideoHDRSupported {
+                config.videoHDRAllowed = true
+                print("[ARSessionService] HDR enabled")
+            } else {
+                print("[ARSessionService] HDR not supported for selected format")
+            }
+        }
         
         // Scene depth (LiDAR)
         if ARWorldTrackingConfiguration.supportsFrameSemantics(.sceneDepth) {

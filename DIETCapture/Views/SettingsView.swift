@@ -1,7 +1,7 @@
 // SettingsView.swift
 // ReScan
 //
-// Global app settings for export formats, resolution, defaults.
+// Global app settings for export formats, resolution, capture FPS, encoding, defaults.
 
 import SwiftUI
 
@@ -9,9 +9,14 @@ struct SettingsView: View {
     @StateObject private var settings = AppSettings.shared
     @Environment(\.dismiss) private var dismiss
     
+    private var supportsAppleLog: Bool {
+        ExportService.supportsAppleLog
+    }
+    
     var body: some View {
         NavigationStack {
             Form {
+                // MARK: - Video Recording
                 Section {
                     Picker("Resolution", selection: $settings.videoResolution) {
                         ForEach(AppSettings.VideoResolution.allCases) { res in
@@ -19,17 +24,36 @@ struct SettingsView: View {
                         }
                     }
                     
-                    Picker("Framerate", selection: $settings.videoFramerate) {
-                        ForEach(AppSettings.VideoFramerate.allCases) { fps in
-                            Text(fps.rawValue).tag(fps)
+                    Picker("Capture FPS", selection: $settings.captureFPS) {
+                        ForEach(AppSettings.CaptureFPS.allCases) { fps in
+                            Text(fps.label).tag(fps)
                         }
                     }
                 } header: {
                     Text("Video Recording")
                 } footer: {
-                    Text("ARKit selects the closest supported format. 4K is only available on Pro iPhones. The actual format depends on device capabilities.")
+                    Text("The capture FPS controls how many frames are saved per second. ARKit always runs at 30fps internally for accurate LiDAR tracking. Lower FPS = smaller files, useful for photogrammetry workflows.")
                 }
                 
+                // MARK: - Color & Encoding
+                Section {
+                    Toggle("HDR", isOn: $settings.enableHDR)
+                        .tint(.cyan)
+                    
+                    Toggle("Apple Log (ProRes)", isOn: $settings.useAppleLog)
+                        .tint(.orange)
+                        .disabled(!supportsAppleLog)
+                } header: {
+                    Text("Color & Encoding")
+                } footer: {
+                    if !supportsAppleLog {
+                        Text("⚠️ Apple Log requires iPhone 15 Pro or later. This device will use HDR HEVC instead.\n\nApple Log captures in a logarithmic color space with ProRes 422 HQ compression — ideal for color grading to ACEScg or other color spaces without quality loss.")
+                    } else {
+                        Text("Apple Log captures in a logarithmic color space with ProRes 422 HQ compression — ideal for converting to ACEScg without quality loss.\n\n⚠️ ProRes files are significantly larger (~6 GB/min at 4K).")
+                    }
+                }
+                
+                // MARK: - LiDAR Defaults
                 Section {
                     VStack(alignment: .leading, spacing: 12) {
                         HStack {
@@ -57,6 +81,7 @@ struct SettingsView: View {
                     Text("Confidence controls the minimum quality threshold for depth measurements.\n\n• Low: Keeps all depth measurements, including uncertain ones. Maximum coverage but may include noise.\n• Medium (Recommended): Good balance between coverage and accuracy. Filters out the least reliable points.\n• High: Only keeps the most reliable depth measurements. Best accuracy but may have gaps in coverage.\n\nSmooth Depth applies temporal smoothing across frames to reduce noise and flickering in the depth map.")
                 }
                 
+                // MARK: - Export Info
                 Section {
                     HStack {
                         Text("Format")
@@ -65,11 +90,18 @@ struct SettingsView: View {
                             .foregroundStyle(.secondary)
                     }
                     HStack {
+                        Text("Video Codec")
+                        Spacer()
+                        Text(settings.useAppleLog && supportsAppleLog ? "ProRes 422 HQ" : (settings.enableHDR ? "HDR HEVC" : "HEVC"))
+                            .foregroundStyle(.secondary)
+                    }
+                    HStack {
                         Text("Directory Structure")
                         Spacer()
                     }
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("• rgb.mp4").font(.caption).foregroundStyle(.secondary)
+                        let ext = (settings.useAppleLog && supportsAppleLog) ? "mov" : "mp4"
+                        Text("• rgb.\(ext) (\(settings.useAppleLog && supportsAppleLog ? "ProRes 422 HQ, Apple Log" : (settings.enableHDR ? "HDR HEVC" : "HEVC")))").font(.caption).foregroundStyle(.secondary)
                         Text("• camera_matrix.csv").font(.caption).foregroundStyle(.secondary)
                         Text("• odometry.csv").font(.caption).foregroundStyle(.secondary)
                         Text("• depth/ (16-bit PNG mm)").font(.caption).foregroundStyle(.secondary)

@@ -24,6 +24,7 @@ final class CaptureSession {
     var elapsedTime: TimeInterval = 0
     var sessionDirectory: URL?
     var frameMetadata: [CaptureFrameMetadata] = []
+    var encodingMode: VideoEncodingMode = .standardHEVC
     
     var estimatedStorageUsedMB: Double = 0
     var availableStorageMB: Double = 0
@@ -34,7 +35,12 @@ final class CaptureSession {
     
     var depthDirectory: URL? { sessionDirectory?.appendingPathComponent("depth") }
     var confidenceDirectory: URL? { sessionDirectory?.appendingPathComponent("confidence") }
-    var videoURL: URL? { sessionDirectory?.appendingPathComponent("rgb.mp4") }
+    
+    /// Video URL — .mov for ProRes/Apple Log, .mp4 for HEVC
+    var videoURL: URL? {
+        sessionDirectory?.appendingPathComponent("rgb.\(encodingMode.fileExtension)")
+    }
+    
     var cameraMatrixURL: URL? { sessionDirectory?.appendingPathComponent("camera_matrix.csv") }
     var odometryURL: URL? { sessionDirectory?.appendingPathComponent("odometry.csv") }
     var meshURL: URL? { sessionDirectory?.appendingPathComponent("mesh.obj") }
@@ -129,11 +135,13 @@ final class CaptureSession {
             
             let depthDir = dir.appendingPathComponent("depth")
             let confDir = dir.appendingPathComponent("confidence")
-            let videoFile = dir.appendingPathComponent("rgb.mp4")
+            // Check for both .mp4 and .mov video files
+            let videoFileMp4 = dir.appendingPathComponent("rgb.mp4")
+            let videoFileMov = dir.appendingPathComponent("rgb.mov")
             
             let depthFiles = (try? fm.contentsOfDirectory(atPath: depthDir.path))?.filter { $0.hasSuffix(".png") } ?? []
             let hasConf = fm.fileExists(atPath: confDir.path)
-            let hasVideo = fm.fileExists(atPath: videoFile.path)
+            let hasVideo = fm.fileExists(atPath: videoFileMp4.path) || fm.fileExists(atPath: videoFileMov.path)
             
             let creationDate = (try? fm.attributesOfItem(atPath: dir.path))?[.creationDate] as? Date ?? Date()
             
