@@ -219,7 +219,7 @@ final class ExportService {
         let position = pose.position
         
         // Extract quaternion from rotation matrix
-        let quat = quaternionFromMatrix(pose.rotation3x3)
+        let quat = simd_quatf(pose.rotation3x3)
         
         let line = "\(timestamp), \(frame), \(position.x), \(position.y), \(position.z), \(quat.vector.x), \(quat.vector.y), \(quat.vector.z), \(quat.vector.w)\n"
         handle.write(line.data(using: .utf8)!)
@@ -229,12 +229,6 @@ final class ExportService {
         odometryFileHandle?.closeFile()
         odometryFileHandle = nil
         hasWrittenOdometryHeader = false
-    }
-    
-    // MARK: - Quaternion from Rotation Matrix
-    
-    private func quaternionFromMatrix(_ R: simd_float3x3) -> simd_quatf {
-        return simd_quatf(R)
     }
     
     // MARK: - Depth Map Export (16-bit PNG, millimeters)
