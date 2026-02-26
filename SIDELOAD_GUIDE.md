@@ -43,8 +43,14 @@ Une fois que vous avez le fichier `DIETCapture.ipa` (téléchargé depuis GitHub
 Utilisez le même outil `AltServer` pour installer votre app :
 
 ```bash
-# Remplacez les valeurs par les vôtres
-sudo ./AltServer -u <VOTRE_UDID> -a <VOTRE_EMAIL> -p <VOTRE_MOT_DE_PASSE> DIETCapture.ipa
+# 1. Définir le mot de passe de manière sécurisée (masqué)
+read -s -p "Entrez votre mot de passe Apple ID : " APPLE_PASSWORD
+
+# 2. Lancer l'installation (la commande utilisera la variable)
+sudo ./AltServer -u <VOTRE_UDID> -a <VOTRE_EMAIL> -p "$APPLE_PASSWORD" DIETCapture.ipa
+
+# 3. Effacer la variable après utilisation (optionnel mais recommandé)
+unset APPLE_PASSWORD
 ```
 
 *(Note : L'UDID est affiché par le script d'installation ou via la commande `idevice_id -l`)*
