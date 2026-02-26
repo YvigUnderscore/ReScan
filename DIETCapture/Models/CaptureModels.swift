@@ -253,9 +253,11 @@ struct RecordedSession: Identifiable, Hashable {
     let frameCount: Int
     let hasDepth: Bool
     let hasConfidence: Bool
-    let hasVideo: Bool
+    let videoURL: URL?
     let thumbnailURL: URL?
     
+    var hasVideo: Bool { videoURL != nil }
+
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
     static func == (lhs: RecordedSession, rhs: RecordedSession) -> Bool { lhs.id == rhs.id }
 }

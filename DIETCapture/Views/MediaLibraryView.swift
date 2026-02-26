@@ -7,17 +7,6 @@ import SwiftUI
 import AVKit
 import AVFoundation
 
-// MARK: - Shared Helper
-
-/// Find the video file in a session directory (supports both .mp4 and .mov)
-private func findVideoURL(in directory: URL) -> URL? {
-    let mp4 = directory.appendingPathComponent("rgb.mp4")
-    if FileManager.default.fileExists(atPath: mp4.path) { return mp4 }
-    let mov = directory.appendingPathComponent("rgb.mov")
-    if FileManager.default.fileExists(atPath: mov.path) { return mov }
-    return nil
-}
-
 struct MediaLibraryView: View {
     @State private var sessions: [RecordedSession] = []
     @State private var selectedSession: RecordedSession?
@@ -195,8 +184,7 @@ struct SessionCardView: View {
     // MARK: - Thumbnail Generation
     
     private func generateThumbnail(for session: RecordedSession) async -> UIImage? {
-        let videoURL = findVideoURL(in: session.directory)
-        guard let videoURL = videoURL else { return nil }
+        guard let videoURL = session.videoURL else { return nil }
         
         let asset = AVAsset(url: videoURL)
         let generator = AVAssetImageGenerator(asset: asset)
@@ -429,7 +417,7 @@ struct SessionDetailView: View {
     }
     
     private func setupVideoPlayer() {
-        if let videoURL = findVideoURL(in: session.directory) {
+        if let videoURL = session.videoURL {
             player = AVPlayer(url: videoURL)
         }
     }

@@ -139,9 +139,15 @@ final class CaptureSession {
             let videoFileMp4 = dir.appendingPathComponent("rgb.mp4")
             let videoFileMov = dir.appendingPathComponent("rgb.mov")
             
+            var videoURL: URL?
+            if fm.fileExists(atPath: videoFileMp4.path) {
+                videoURL = videoFileMp4
+            } else if fm.fileExists(atPath: videoFileMov.path) {
+                videoURL = videoFileMov
+            }
+
             let depthFiles = (try? fm.contentsOfDirectory(atPath: depthDir.path))?.filter { $0.hasSuffix(".png") } ?? []
             let hasConf = fm.fileExists(atPath: confDir.path)
-            let hasVideo = fm.fileExists(atPath: videoFileMp4.path) || fm.fileExists(atPath: videoFileMov.path)
             
             let creationDate = (try? fm.attributesOfItem(atPath: dir.path))?[.creationDate] as? Date ?? Date()
             
@@ -156,7 +162,7 @@ final class CaptureSession {
                 frameCount: depthFiles.count,
                 hasDepth: !depthFiles.isEmpty,
                 hasConfidence: hasConf,
-                hasVideo: hasVideo,
+                videoURL: videoURL,
                 thumbnailURL: thumbURL
             ))
         }
