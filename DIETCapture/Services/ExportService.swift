@@ -233,7 +233,7 @@ final class ExportService {
     
     // MARK: - Depth Map Export (16-bit PNG, millimeters)
     
-    func saveDepthMap16BitPNG(_ depthMap: CVPixelBuffer, to url: URL) {
+    func saveDepthMap16BitPNG(_ depthMap: CVPixelBuffer, to url: URL, completion: ((Result<Void, Error>) -> Void)? = nil) {
         let bufferWrapper = UnsafeSendableWrapper(value: depthMap)
         writeQueue.async {
             let depthMap = bufferWrapper.value
@@ -243,7 +243,10 @@ final class ExportService {
             let width = CVPixelBufferGetWidth(depthMap)
             let height = CVPixelBufferGetHeight(depthMap)
             
-            guard let baseAddress = CVPixelBufferGetBaseAddress(depthMap) else { return }
+            guard let baseAddress = CVPixelBufferGetBaseAddress(depthMap) else {
+                completion?(.failure(ExportError.bufferAccessFailed))
+                return
+            }
             let floatPointer = baseAddress.assumingMemoryBound(to: Float32.self)
             
             // Convert float meters to UInt16 millimeters
@@ -270,16 +273,24 @@ final class ExportService {
                 ),
                       let cgImage = context.makeImage(),
                       let pngData = UIImage(cgImage: cgImage).pngData()
-                else { return }
+                else {
+                    completion?(.failure(ExportError.conversionFailed))
+                    return
+                }
                 
-                try? pngData.write(to: url)
+                do {
+                    try pngData.write(to: url)
+                    completion?(.success(()))
+                } catch {
+                    completion?(.failure(error))
+                }
             }
         }
     }
     
     // MARK: - Confidence Map Export
     
-    func saveConfidenceMap(_ confidenceMap: CVPixelBuffer, to url: URL) {
+    func saveConfidenceMap(_ confidenceMap: CVPixelBuffer, to url: URL, completion: ((Result<Void, Error>) -> Void)? = nil) {
         let bufferWrapper = UnsafeSendableWrapper(value: confidenceMap)
         writeQueue.async {
             let confidenceMap = bufferWrapper.value
@@ -289,7 +300,10 @@ final class ExportService {
             let width = CVPixelBufferGetWidth(confidenceMap)
             let height = CVPixelBufferGetHeight(confidenceMap)
             
-            guard let baseAddress = CVPixelBufferGetBaseAddress(confidenceMap) else { return }
+            guard let baseAddress = CVPixelBufferGetBaseAddress(confidenceMap) else {
+                completion?(.failure(ExportError.bufferAccessFailed))
+                return
+            }
             let pointer = baseAddress.assumingMemoryBound(to: UInt8.self)
             
             // Scale 0,1,2 → 0, 127, 255
@@ -315,9 +329,17 @@ final class ExportService {
                 ),
                       let cgImage = context.makeImage(),
                       let pngData = UIImage(cgImage: cgImage).pngData()
-                else { return }
+                else {
+                    completion?(.failure(ExportError.conversionFailed))
+                    return
+                }
                 
-                try? pngData.write(to: url)
+                do {
+                    try pngData.write(to: url)
+                    completion?(.success(()))
+                } catch {
+                    completion?(.failure(error))
+                }
             }
         }
     }
