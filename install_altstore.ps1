@@ -28,9 +28,19 @@ Read-Host
 $altStoreUrl = "https://cdn.altstore.io/file/altstore/altinstaller.zip"
 $zipPath = "$env:TEMP\altinstaller.zip"
 $extractPath = "$env:TEMP\AltInstaller"
+$expectedHash = "E0423A6036E8D34F051D60C91705805ED68B1A7D586F791C45543067E2E36C0A"
 
 Write-Host "Step 2: Downloading AltServer..." -ForegroundColor Cyan
 Invoke-WebRequest -Uri $altStoreUrl -OutFile $zipPath
+
+Write-Host "Verifying AltServer download..." -ForegroundColor Cyan
+$fileHash = Get-FileHash -Path $zipPath -Algorithm SHA256
+if ($fileHash.Hash -ne $expectedHash) {
+    Write-Error "Hash verification failed! Expected: $expectedHash, Actual: $($fileHash.Hash)"
+    Remove-Item -Path $zipPath -Force
+    exit 1
+}
+Write-Host "Hash verification successful." -ForegroundColor Green
 
 Write-Host "Extracting AltServer..." -ForegroundColor Cyan
 if (Test-Path $extractPath) { Remove-Item -Path $extractPath -Recurse -Force }
