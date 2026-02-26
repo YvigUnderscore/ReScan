@@ -8,6 +8,9 @@ import SwiftUI
 struct ViewfinderView: View {
     @Bindable var viewModel: CaptureViewModel
     
+    // Shared CIContext for efficient rendering
+    private static let ciContext = CIContext()
+
     @State private var showControls = false
     @State private var previewImage: UIImage?
     @State private var refreshTimer: Timer?
@@ -247,8 +250,8 @@ struct ViewfinderView: View {
     
     private func imageFromPixelBuffer(_ buffer: CVPixelBuffer, orientation: UIImage.Orientation = .right) -> UIImage? {
         let ciImage = CIImage(cvPixelBuffer: buffer)
-        let context = CIContext()
-        guard let cgImage = context.createCGImage(ciImage, from: ciImage.extent) else { return nil }
+        // Reuse shared CIContext to avoid expensive initialization
+        guard let cgImage = Self.ciContext.createCGImage(ciImage, from: ciImage.extent) else { return nil }
         return UIImage(cgImage: cgImage, scale: 1.0, orientation: orientation)
     }
     
