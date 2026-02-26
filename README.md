@@ -94,7 +94,7 @@ scan_20260225_153022/
     └── ...
 ```
 
-This structure is directly consumable by tools like `stray_to_colmap.py` for immediate reconstruction without complex preprocessing.
+This structure is directly consumable by tools like ReMap or even `stray_to_colmap.py` for immediate reconstruction without complex preprocessing.
 
 ---
 
