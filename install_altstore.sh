@@ -2,6 +2,7 @@
 
 # Configuration
 ALTSERVER_URL="https://github.com/NyaMisty/AltServer-Linux/releases/download/v0.0.5/AltServer-x86_64"
+ALTSERVER_SHA256="0be7c3adc69ec1177a15032b3b8e37c5d0e4fefb47c9c439cd62c238b3ea17fb"
 INSTALL_DIR=$(pwd)
 ALTSERVER_BIN="$INSTALL_DIR/AltServer"
 IPA_PATH=""
@@ -39,6 +40,7 @@ if ! check_cmd usbmuxd; then echo "Missing: usbmuxd"; MISSING_DEPS=1; fi
 if ! check_cmd curl && ! check_cmd wget; then echo "Missing: curl/wget"; MISSING_DEPS=1; fi
 if ! check_cmd unzip; then echo "Missing: unzip"; MISSING_DEPS=1; fi 
 if ! check_cmd zip; then echo "Missing: zip"; MISSING_DEPS=1; fi
+if ! check_cmd sha256sum; then echo "Missing: sha256sum (coreutils)"; MISSING_DEPS=1; fi
 
 # Check for libdns_sd.so (Avahi compatibility) required by AltServer
 if ! ldconfig -p | grep -q libdns_sd.so && [ ! -f "/usr/lib/x86_64-linux-gnu/libdns_sd.so.1" ] && [ ! -f "/usr/lib/libdns_sd.so" ]; then
@@ -73,6 +75,17 @@ if [ ! -f "$ALTSERVER_BIN" ]; then
     else
         wget -O "$ALTSERVER_BIN" "$ALTSERVER_URL"
     fi
+
+    echo -e "${YELLOW}Verifying AltServer checksum...${NC}"
+    echo "$ALTSERVER_SHA256  $ALTSERVER_BIN" | sha256sum -c - > /dev/null 2>&1
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}Checksum verification failed! The downloaded file may be corrupted or compromised.${NC}"
+        rm -f "$ALTSERVER_BIN"
+        exit 1
+    else
+        echo -e "${GREEN}Checksum verification passed.${NC}"
+    fi
+
     chmod +x "$ALTSERVER_BIN"
     echo -e "${GREEN}AltServer downloaded.${NC}"
 else
