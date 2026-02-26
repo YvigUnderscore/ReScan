@@ -129,20 +129,20 @@ echo -e "${GREEN}Device detected:${NC} $UDID"
 
 echo -e "${YELLOW}Starting AltServer...${NC}"
 
-ADB_ARGS="-u $UDID -a $APPLE_ID -p $APPLE_PASSWORD"
+ADB_ARGS=(-u "$UDID" -a "$APPLE_ID" -p "$APPLE_PASSWORD")
 
 if [ "$MODE" == "1" ] && [ ! -z "$IPA_PATH" ]; then
     echo "Installing App: $IPA_PATH"
     echo "Please keep your device UNLOCKED."
-    sudo ALTSERVER_ANISETTE_SERVER=$ALTSERVER_ANISETTE_SERVER "$ALTSERVER_BIN" $ADB_ARGS "$IPA_PATH"
+    sudo ALTSERVER_ANISETTE_SERVER="$ALTSERVER_ANISETTE_SERVER" "$ALTSERVER_BIN" "${ADB_ARGS[@]}" "$IPA_PATH"
 elif [ "$MODE" == "1" ] && [ -z "$IPA_PATH" ]; then
     echo -e "${RED}Cannot install directly: No IPA file found.${NC}"
     echo "Switching to Server Mode..."
-    sudo ALTSERVER_ANISETTE_SERVER=$ALTSERVER_ANISETTE_SERVER "$ALTSERVER_BIN" $ADB_ARGS
+    sudo ALTSERVER_ANISETTE_SERVER="$ALTSERVER_ANISETTE_SERVER" "$ALTSERVER_BIN" "${ADB_ARGS[@]}"
 else
     echo "Starting Server Mode..."
     echo "Keep this window open. On your iPhone, open AltStore -> My Apps -> + -> Select the IPA."
-    sudo ALTSERVER_ANISETTE_SERVER=$ALTSERVER_ANISETTE_SERVER "$ALTSERVER_BIN" $ADB_ARGS
+    sudo ALTSERVER_ANISETTE_SERVER="$ALTSERVER_ANISETTE_SERVER" "$ALTSERVER_BIN" "${ADB_ARGS[@]}"
 fi
 
 echo ""
