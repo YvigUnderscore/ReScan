@@ -65,7 +65,7 @@ final class DepthMapProcessor {
     // MARK: - Jet Colormap
     
     /// Converts a depth value (normalized 0-1) to RGB using the jet colormap.
-    static func jetColormap(_ value: Float) -> (r: Float, g: Float, b: Float) {
+    private static func jetColormap(_ value: Float) -> (r: Float, g: Float, b: Float) {
         let v = max(0, min(1, value))
         
         var r: Float = 0, g: Float = 0, b: Float = 0
