@@ -4,7 +4,7 @@
 ![Platform](https://img.shields.io/badge/iOS-17.0+-white?logo=apple)
 ![License](https://img.shields.io/badge/License-CC%20BY--NC%204.0-lightgrey.svg)
 
-**ReScan** is an advanced iOS application designed for high-fidelity 3D scanning and photogrammetry. It seamlessly captures synchronized LiDAR depth data, confidence maps, camera tracking (odometry), and high-resolution RGB video. It natively exports data in the **Stray Scanner format**, making it instantly compatible with popular SfM (Structure from Motion) and Gaussian Splatting pipelines like COLMAP/GLOMAP. I will soon publish a full pipeline from point cloud generation to Gaussian Splatting using SOTA technologies like Hloc, Glomap, Lightglue, etc.
+**ReScan** is an advanced iOS application designed for high-fidelity 3D scanning and photogrammetry. It seamlessly captures synchronized LiDAR depth data, confidence maps, camera tracking (odometry), and high-resolution RGB video. It natively exports data in the **Stray Scanner format**, making it instantly compatible with popular SfM (Structure from Motion) and Gaussian Splatting pipelines like COLMAP/GLOMAP. Check our SfM using SOTA technologies like Hloc, Glomap, Lightglue, etc -> https://github.com/YvigUnderscore/ReMap.
 
 ---
 
