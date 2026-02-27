@@ -4,6 +4,7 @@
 // Manual camera controls (exposure, focus, WB) applied to the ARKit-owned camera device.
 
 import Foundation
+import Observation
 import AVFoundation
 import UIKit
 

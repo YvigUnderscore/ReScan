@@ -53,10 +53,10 @@ struct ContentView: View {
         }
         .task {
             // Check permissions and keep splash screen visible for at least 2.2 seconds for animation
-            async let authDelay: () = Task.sleep(nanoseconds: 2_200_000_000)
-            async let authCheck: () = checkPermissions()
+            async let authDelay = try? Task.sleep(nanoseconds: 2_200_000_000)
+            async let authCheck: Void = checkPermissions()
             
-            _ = await (try? authDelay, authCheck)
+            _ = await (authDelay, authCheck)
             
             withAnimation(.easeInOut(duration: 0.4)) {
                 showSplash = false

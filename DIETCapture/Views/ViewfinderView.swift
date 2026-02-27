@@ -4,6 +4,7 @@
 // Main capture screen: ARKit preview, pass viewer, collapsible controls, record button.
 
 import SwiftUI
+import UIKit
 
 struct ViewfinderView: View {
     @Bindable var viewModel: CaptureViewModel

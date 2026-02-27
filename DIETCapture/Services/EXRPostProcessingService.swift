@@ -6,6 +6,7 @@
 // device thermal state to avoid impacting performance.
 
 import Foundation
+import Observation
 import CoreImage
 
 @Observable

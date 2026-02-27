@@ -4,6 +4,7 @@
 // Observable ViewModel for LiDAR controls and pass viewer.
 
 import Foundation
+import Observation
 import ARKit
 
 @Observable

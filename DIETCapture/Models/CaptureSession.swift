@@ -4,6 +4,7 @@
 // Represents one recording session. Stray Scanner-compatible directory structure.
 
 import Foundation
+import Observation
 
 @Observable
 final class CaptureSession {

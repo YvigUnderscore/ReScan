@@ -5,6 +5,7 @@
 // Handles FPS subsampling — ARKit runs at native rate, only selected frames are captured.
 
 import Foundation
+import Observation
 import AVFoundation
 import ARKit
 import Combine

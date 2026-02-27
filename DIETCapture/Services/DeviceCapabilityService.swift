@@ -4,6 +4,7 @@
 // Detects hardware capabilities: LiDAR, ProRAW, available lenses.
 
 import Foundation
+import Observation
 import AVFoundation
 import ARKit
 

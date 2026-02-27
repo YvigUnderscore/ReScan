@@ -4,6 +4,7 @@
 // Browse recorded scan sessions, preview passes, delete scans.
 
 import SwiftUI
+import UIKit
 import AVKit
 import AVFoundation
 

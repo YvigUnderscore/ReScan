@@ -4,6 +4,7 @@
 // Observable ViewModel for camera manual controls.
 
 import Foundation
+import Observation
 import AVFoundation
 import CoreMedia
 

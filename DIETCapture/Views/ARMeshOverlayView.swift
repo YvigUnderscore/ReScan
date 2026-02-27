@@ -5,6 +5,7 @@
 // for real-time coverage visualization.
 
 import SwiftUI
+import UIKit
 import ARKit
 import SceneKit
 

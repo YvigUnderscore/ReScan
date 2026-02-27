@@ -4,6 +4,7 @@
 // ARKit session management: LiDAR depth, confidence, pose tracking, camera frames.
 
 import Foundation
+import Observation
 import ARKit
 import Combine
 
