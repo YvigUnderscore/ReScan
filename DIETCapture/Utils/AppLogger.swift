@@ -15,8 +15,9 @@ final class AppLogger {
 
     // MARK: - Private
 
-    private let fileHandle: FileHandle?
-    private let logURL: URL?
+    private var fileHandle: FileHandle?
+    private var logURL: URL?
+    private var didSetupFile = false
     private let subsystem = "com.rescan.app"
     private let timestampFormatter: DateFormatter = {
         let f = DateFormatter()
@@ -27,10 +28,22 @@ final class AppLogger {
     // MARK: - Init
 
     private init() {
+        // Defer file creation to first write to avoid filesystem access
+        // before the app sandbox is fully ready.
+    }
+
+    deinit {
+        try? fileHandle?.close()
+    }
+
+    // MARK: - Lazy File Setup
+
+    private func setupFileIfNeeded() {
+        guard !didSetupFile else { return }
+        didSetupFile = true
+
         let fm = FileManager.default
         guard let docs = fm.urls(for: .documentDirectory, in: .userDomainMask).first else {
-            fileHandle = nil
-            logURL = nil
             return
         }
 
@@ -45,10 +58,6 @@ final class AppLogger {
         fm.createFile(atPath: url.path, contents: nil)
         fileHandle = try? FileHandle(forWritingTo: url)
         logURL = url
-    }
-
-    deinit {
-        try? fileHandle?.close()
     }
 
     // MARK: - Public API
@@ -71,6 +80,7 @@ final class AppLogger {
     // MARK: - Private
 
     private func write(level: String, message: String, category: String) {
+        setupFileIfNeeded()
         let timestamp = timestampFormatter.string(from: Date())
         let line = "[\(timestamp)] [\(level)] [\(category)] \(message)\n"
         guard let data = line.data(using: .utf8), let handle = fileHandle else { return }

@@ -8,7 +8,18 @@ import SwiftUI
 @main
 struct ReScanApp: App {
 
-    init() {
+    var body: some Scene {
+        WindowGroup {
+            ContentView()
+                .preferredColorScheme(.dark)
+                .environment(EXRPostProcessingService.shared)
+                .task {
+                    logStartupInfo()
+                }
+        }
+    }
+
+    private func logStartupInfo() {
         let logger = AppLogger.shared
         let device = UIDevice.current
         let bundle = Bundle.main
@@ -22,14 +33,6 @@ struct ReScanApp: App {
 
         if let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
             logger.info("Documents: \(docs.path)", category: "Startup")
-        }
-    }
-
-    var body: some Scene {
-        WindowGroup {
-            ContentView()
-                .preferredColorScheme(.dark)
-                .environment(EXRPostProcessingService.shared)
         }
     }
 }
