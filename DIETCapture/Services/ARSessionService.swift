@@ -68,13 +68,14 @@ final class ARSessionService: NSObject {
             // Highest resolution at 30fps; formats is non-empty (guaranteed by guard above)
             selectedFormat = formats.filter({ $0.framesPerSecond == 30 })
                 .max(by: { ($0.imageResolution.width * $0.imageResolution.height) < ($1.imageResolution.width * $1.imageResolution.height) })
-                ?? formats.max(by: { ($0.imageResolution.width * $0.imageResolution.height) < ($1.imageResolution.width * $1.imageResolution.height) })!
+                ?? formats.max(by: { ($0.imageResolution.width * $0.imageResolution.height) < ($1.imageResolution.width * $1.imageResolution.height) })
+                ?? formats[0]
         } else {
             // Medium (~1080p) at 30fps
             selectedFormat = formats.filter({ $0.framesPerSecond == 30 })
                 .first(where: { $0.imageResolution.height >= 1080 && $0.imageResolution.height < 1440 })
                 ?? formats.first(where: { $0.imageResolution.height >= 1080 && $0.imageResolution.height < 1440 })
-                ?? formats.first!
+                ?? formats[0]
         }
         
         config.videoFormat = selectedFormat
@@ -108,12 +109,6 @@ final class ARSessionService: NSObject {
         
         // Environment texturing
         config.environmentTexturing = .automatic
-        
-        // High resolution frame capturing
-        if let hiResFormat = ARWorldTrackingConfiguration
-            .recommendedVideoFormatForHighResolutionFrameCapturing {
-            config.videoFormat = hiResFormat
-        }
         
         // World alignment
         config.worldAlignment = .gravity
