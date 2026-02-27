@@ -61,6 +61,7 @@ struct MediaLibraryView: View {
                     deleteSession(session)
                     selectedSession = nil
                 })
+                .environment(postProcessor)
             }
             .alert("Delete Scan?", isPresented: $showDeleteConfirmation) {
                 Button("Delete", role: .destructive) {

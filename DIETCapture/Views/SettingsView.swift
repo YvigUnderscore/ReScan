@@ -6,8 +6,8 @@
 import SwiftUI
 
 struct SettingsView: View {
-    @StateObject private var settings = AppSettings.shared
-    @StateObject private var storageManager = SecurityScopedStorageManager.shared
+    @ObservedObject private var settings = AppSettings.shared
+    @ObservedObject private var storageManager = SecurityScopedStorageManager.shared
     @Environment(\.dismiss) private var dismiss
     
     @State private var showFileImporter = false
