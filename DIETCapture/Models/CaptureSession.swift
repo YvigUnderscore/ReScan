@@ -33,6 +33,9 @@ final class CaptureSession {
     
     private let fileManager = FileManager.default
     
+    /// Marker file placed inside `rgb/` to indicate frames still require YUV→EXR conversion.
+    static let pendingConversionMarker = ".pending_conversion"
+    
     var depthDirectory: URL? { sessionDirectory?.appendingPathComponent("depth") }
     var confidenceDirectory: URL? { sessionDirectory?.appendingPathComponent("confidence") }
     
@@ -138,6 +141,10 @@ final class CaptureSession {
         exrDirectory?.appendingPathComponent("\(frameName(for: index)).exr")
     }
     
+    func rawYUVURL(for index: Int) -> URL? {
+        exrDirectory?.appendingPathComponent("\(frameName(for: index)).yuv")
+    }
+    
     // MARK: - List All Sessions
     
     static func listSessions() -> [RecordedSession] {
@@ -177,6 +184,20 @@ final class CaptureSession {
                 // Thumbnail: first depth frame
                 let thumbURL = depthFiles.isEmpty ? nil : depthDir.appendingPathComponent(depthFiles.sorted().first!)
                 
+                // Detect EXR conversion status
+                let rgbDir = dir.appendingPathComponent("rgb")
+                var conversionStatus: ConversionStatus = .notApplicable
+                if fm.fileExists(atPath: rgbDir.path) {
+                    let pendingMarker = rgbDir.appendingPathComponent(pendingConversionMarker)
+                    if fm.fileExists(atPath: pendingMarker.path) {
+                        let yuvCount = (try? fm.contentsOfDirectory(atPath: rgbDir.path))?.filter { $0.hasSuffix(".yuv") }.count ?? 0
+                        conversionStatus = .pending(frameCount: yuvCount)
+                    } else {
+                        let hasEXR = (try? fm.contentsOfDirectory(atPath: rgbDir.path))?.contains { $0.hasSuffix(".exr") } ?? false
+                        conversionStatus = hasEXR ? .converted : .notApplicable
+                    }
+                }
+                
                 sessions.append(RecordedSession(
                     id: name,
                     name: name,
@@ -186,7 +207,8 @@ final class CaptureSession {
                     hasDepth: !depthFiles.isEmpty,
                     hasConfidence: hasConf,
                     videoURL: videoURL,
-                    thumbnailURL: thumbURL
+                    thumbnailURL: thumbURL,
+                    conversionStatus: conversionStatus
                 ))
             }
         }

@@ -22,6 +22,9 @@ final class AppSettings: ObservableObject {
     /// Capture frames as EXR sequence directly instead of Video
     @AppStorage("captureEXR") var captureEXR: Bool = false
     
+    /// Skip real-time YUV→EXR conversion during capture; save raw frames for post-processing in the media library
+    @AppStorage("deferredEXRConversion") var deferredEXRConversion: Bool = false
+    
     /// HDR video capture
     @AppStorage("enableHDR") var enableHDR: Bool = true
     

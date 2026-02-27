@@ -55,11 +55,17 @@ struct SettingsView: View {
                         
                     Toggle("EXR Sequence", isOn: $settings.captureEXR)
                         .tint(.purple)
+                    
+                    Toggle("Deferred EXR Conversion", isOn: $settings.deferredEXRConversion)
+                        .tint(.orange)
+                        .disabled(!settings.captureEXR)
                 } header: {
                     Text("Color & Encoding")
                 } footer: {
                     if settings.captureEXR {
-                        Text("Captures individual EXR frames instead of a video. EXR files are saved in extended linear sRGB space using half-float precision.\n\n⚠️ EXR sequences consume extreme amounts of storage and memory (~10MB/frame). It is highly recommended to use 1 FPS to avoid hardware bottlenecks (RAM buffers, CPU processing, and storage thermal throttling).")
+                        let base = "Captures individual EXR frames instead of a video. EXR files are saved in extended linear sRGB space using half-float precision.\n\n⚠️ EXR sequences consume extreme amounts of storage and memory (~10MB/frame). It is highly recommended to use 1 FPS to avoid hardware bottlenecks (RAM buffers, CPU processing, and storage thermal throttling)."
+                        let deferred = settings.deferredEXRConversion ? "\n\nDeferred Conversion: Raw YUV frames are written to disk during capture (minimal CPU load). Convert them to EXR later from the media library." : ""
+                        Text(base + deferred)
                     } else if !supportsAppleLog {
                         Text("⚠️ Apple Log requires iPhone 15 Pro or later. This device will use HDR HEVC instead.\n\nApple Log captures in a logarithmic color space with ProRes 422 HQ compression — ideal for color grading to ACEScg or other color spaces without quality loss.")
                     } else {

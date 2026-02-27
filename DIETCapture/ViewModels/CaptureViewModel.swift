@@ -149,6 +149,13 @@ final class CaptureViewModel {
                 showError(message: "⚠️ Less than 1 GB storage remaining")
             }
             
+            // Create pending-conversion marker when capturing in deferred EXR mode
+            if activeEncodingMode == .exrSequence && AppSettings.shared.deferredEXRConversion,
+               let exrDir = session.exrDirectory {
+                let markerURL = exrDir.appendingPathComponent(CaptureSession.pendingConversionMarker)
+                FileManager.default.createFile(atPath: markerURL.path, contents: nil)
+            }
+            
             print("[CaptureVM] Recording started — \(appSettings.captureFPS.label), encoding: \(activeEncodingMode.label)")
             
         } catch {
@@ -227,7 +234,11 @@ final class CaptureViewModel {
         
         // Append video frame or save EXR frame
         if activeEncodingMode == .exrSequence {
-            if let url = session.exrURL(for: frameIndex) {
+            if AppSettings.shared.deferredEXRConversion, let url = session.rawYUVURL(for: frameIndex) {
+                exportQueue.async { [weak self] in
+                    self?.exportService.saveRawYUVFrame(capturedImage, to: url)
+                }
+            } else if let url = session.exrURL(for: frameIndex) {
                 exportQueue.async { [weak self] in
                     self?.exportService.saveEXRFrame(capturedImage, to: url)
                 }

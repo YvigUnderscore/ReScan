@@ -11,6 +11,7 @@ struct ReScanApp: App {
         WindowGroup {
             ContentView()
                 .preferredColorScheme(.dark)
+                .environment(EXRPostProcessingService.shared)
         }
     }
 }
