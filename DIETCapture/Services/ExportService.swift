@@ -13,6 +13,7 @@ import VideoToolbox
 import ModelIO
 import SceneKit
 import ImageIO
+import os.lock
 
 struct UnsafeSendableWrapper<T>: @unchecked Sendable {
     let value: T
@@ -23,6 +24,20 @@ final class ExportService {
     // MARK: - Queues
     
     private let writeQueue = DispatchQueue(label: "com.rescan.export.write", qos: .utility)
+    
+    // MARK: - EXR Pipeline State
+    
+    private let exrPendingLock = OSAllocatedUnfairLock<Int>(initialState: 0)
+    private let maxPendingFrames = 2
+    
+    private lazy var exrCIContext: CIContext = {
+        let options: [CIContextOption: Any] = [
+            .useSoftwareRenderer: false,
+            .allowLowPower: false,
+            .cacheIntermediates: true
+        ]
+        return CIContext(options: options)
+    }()
     
     // MARK: - AVAssetWriter for Video
     
@@ -295,19 +310,36 @@ final class ExportService {
     // MARK: - EXR Frame Export
     
     func saveEXRFrame(_ pixelBuffer: CVPixelBuffer, to url: URL, completion: ((Result<Void, Error>) -> Void)? = nil) {
+        // Atomically check and increment the pending counter
+        let accepted = exrPendingLock.withLock { count -> Bool in
+            guard count < maxPendingFrames else { return false }
+            count += 1
+            return true
+        }
+        guard accepted else {
+            print("[ExportService] ⚠️ EXR pipeline saturated, frame dropped")
+            completion?(.failure(ExportError.queueSaturated))
+            return
+        }
+        
         let bufferWrapper = UnsafeSendableWrapper(value: pixelBuffer)
-        writeQueue.async {
+        writeQueue.async { [weak self] in
+            defer { self?.exrPendingLock.withLock { $0 -= 1 } }
+            
             let pb = bufferWrapper.value
             
             // Create CIImage to handle YUV to RGB conversion correctly
             let ciImage = CIImage(cvPixelBuffer: pb)
             
             // Render to a 16-bit float CGImage (EXR natively uses half-float or full-float)
-            // Linear sRGB (or Rec.2020) is preferred for EXR
-            let colorSpace = CGColorSpace(name: CGColorSpace.extendedLinearSRGB) ?? CGColorSpaceCreateDeviceRGB()
-            let context = CIContext(options: nil)
+            // Linear sRGB is required for EXR; refuse export if unavailable to avoid silent data loss
+            guard let colorSpace = CGColorSpace(name: CGColorSpace.extendedLinearSRGB) else {
+                print("[ExportService] ❌ CRITICAL: extendedLinearSRGB color space unavailable — EXR export refused")
+                completion?(.failure(ExportError.colorSpaceUnavailable))
+                return
+            }
             
-            guard let cgImage = context.createCGImage(ciImage, from: ciImage.extent, format: .RGBAh, colorSpace: colorSpace) else {
+            guard let cgImage = self?.exrCIContext.createCGImage(ciImage, from: ciImage.extent, format: .RGBAh, colorSpace: colorSpace) else {
                 completion?(.failure(ExportError.conversionFailed))
                 return
             }
@@ -317,8 +349,9 @@ final class ExportService {
                 return
             }
             
+            // ZIP (lossless) compression for EXR
             let options: [CFString: Any] = [
-                kCGImageDestinationLossyCompressionQuality: 1.0
+                "imageCompression" as CFString: NSNumber(value: 1)
             ]
             
             CGImageDestinationAddImage(destination, cgImage, options as CFDictionary)
@@ -467,12 +500,16 @@ enum ExportError: LocalizedError {
     case bufferAccessFailed
     case conversionFailed
     case fileWriteFailed
+    case colorSpaceUnavailable
+    case queueSaturated
     
     var errorDescription: String? {
         switch self {
         case .bufferAccessFailed: return "Failed to access pixel buffer"
         case .conversionFailed: return "Image conversion failed"
         case .fileWriteFailed: return "File write failed"
+        case .colorSpaceUnavailable: return "Required linear sRGB color space is unavailable on this device"
+        case .queueSaturated: return "EXR write queue is saturated; frame dropped"
         }
     }
 }
