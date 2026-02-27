@@ -245,6 +245,26 @@ extension ProcessInfo.ThermalState {
     }
 }
 
+// MARK: - EXR Conversion Status
+
+enum ConversionStatus: Equatable {
+    /// Session does not use EXR capture (video or no RGB pass)
+    case notApplicable
+    /// Session has raw YUV frames awaiting post-processing conversion
+    case pending(frameCount: Int)
+    /// All EXR frames have been converted from raw YUV
+    case converted
+
+    static func == (lhs: ConversionStatus, rhs: ConversionStatus) -> Bool {
+        switch (lhs, rhs) {
+        case (.notApplicable, .notApplicable): return true
+        case (.converted, .converted): return true
+        case (.pending(let a), .pending(let b)): return a == b
+        default: return false
+        }
+    }
+}
+
 // MARK: - Recorded Session (for Media Library)
 
 struct RecordedSession: Identifiable, Hashable {
@@ -257,7 +277,8 @@ struct RecordedSession: Identifiable, Hashable {
     let hasConfidence: Bool
     let videoURL: URL?
     let thumbnailURL: URL?
-    
+    var conversionStatus: ConversionStatus = .notApplicable
+
     var hasVideo: Bool { videoURL != nil }
 
     func hash(into hasher: inout Hasher) { hasher.combine(id) }

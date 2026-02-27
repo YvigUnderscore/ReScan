@@ -307,6 +307,127 @@ final class ExportService {
         }
     }
     
+    // MARK: - Raw YUV Frame Export (Deferred Conversion)
+
+    /// Binary file magic: "RSRW"
+    private static let rawYUVMagic: UInt32 = 0x52535257
+
+    /// Saves the raw YUV pixel buffer to disk without color conversion.
+    /// Used in deferred EXR mode to skip the expensive YUV→linear-RGB transform at capture time.
+    func saveRawYUVFrame(_ pixelBuffer: CVPixelBuffer, to url: URL, completion: ((Result<Void, Error>) -> Void)? = nil) {
+        let bufferWrapper = UnsafeSendableWrapper(value: pixelBuffer)
+        writeQueue.async {
+            let pb = bufferWrapper.value
+            CVPixelBufferLockBaseAddress(pb, .readOnly)
+            defer { CVPixelBufferUnlockBaseAddress(pb, .readOnly) }
+
+            let pixelFormat = CVPixelBufferGetPixelFormatType(pb)
+            let width    = UInt32(CVPixelBufferGetWidth(pb))
+            let height   = UInt32(CVPixelBufferGetHeight(pb))
+            let planeCount = UInt32(CVPixelBufferGetPlaneCount(pb))
+
+            var data = Data()
+
+            // Header
+            func appendUInt32(_ v: UInt32) {
+                var val = v
+                data.append(contentsOf: withUnsafeBytes(of: &val) { Array($0) })
+            }
+            func appendUInt64(_ v: UInt64) {
+                var val = v
+                data.append(contentsOf: withUnsafeBytes(of: &val) { Array($0) })
+            }
+
+            appendUInt32(ExportService.rawYUVMagic)
+            appendUInt32(pixelFormat)
+            appendUInt32(width)
+            appendUInt32(height)
+            appendUInt32(planeCount)
+
+            for plane in 0..<Int(planeCount) {
+                let pw  = UInt32(CVPixelBufferGetWidthOfPlane(pb, plane))
+                let ph  = UInt32(CVPixelBufferGetHeightOfPlane(pb, plane))
+                let bpr = UInt32(CVPixelBufferGetBytesPerRowOfPlane(pb, plane))
+                let ds  = UInt64(bpr) * UInt64(ph)
+                guard let addr = CVPixelBufferGetBaseAddressOfPlane(pb, plane) else {
+                    completion?(.failure(ExportError.bufferAccessFailed))
+                    return
+                }
+                appendUInt32(pw)
+                appendUInt32(ph)
+                appendUInt32(bpr)
+                appendUInt64(ds)
+                data.append(Data(bytes: addr, count: Int(ds)))
+            }
+
+            do {
+                try data.write(to: url)
+                completion?(.success(()))
+            } catch {
+                completion?(.failure(error))
+            }
+        }
+    }
+
+    /// Reads a raw YUV file saved by ``saveRawYUVFrame`` and reconstructs a ``CVPixelBuffer``.
+    static func loadRawYUVFrame(from url: URL) -> CVPixelBuffer? {
+        guard let fileData = try? Data(contentsOf: url) else { return nil }
+        var offset = 0
+
+        func readUInt32() -> UInt32? {
+            guard offset + 4 <= fileData.count else { return nil }
+            let val = fileData.withUnsafeBytes { $0.load(fromByteOffset: offset, as: UInt32.self) }
+            offset += 4
+            return val
+        }
+        func readUInt64() -> UInt64? {
+            guard offset + 8 <= fileData.count else { return nil }
+            let val = fileData.withUnsafeBytes { $0.load(fromByteOffset: offset, as: UInt64.self) }
+            offset += 8
+            return val
+        }
+
+        guard let magic = readUInt32(), magic == rawYUVMagic else { return nil }
+        guard let pixelFormat = readUInt32() else { return nil }
+        guard let width = readUInt32(), let height = readUInt32() else { return nil }
+        guard let planeCount = readUInt32(), planeCount > 0 else { return nil }
+
+        struct PlaneInfo { let width, height, bytesPerRow, dataOffset: Int; let dataSize: Int }
+        var planes: [PlaneInfo] = []
+        for _ in 0..<Int(planeCount) {
+            guard let pw = readUInt32(), let ph = readUInt32(),
+                  let bpr = readUInt32(), let ds = readUInt64() else { return nil }
+            planes.append(PlaneInfo(width: Int(pw), height: Int(ph), bytesPerRow: Int(bpr),
+                                    dataOffset: offset, dataSize: Int(ds)))
+            offset += Int(ds)
+        }
+
+        var pb: CVPixelBuffer?
+        guard CVPixelBufferCreate(nil, Int(width), Int(height), pixelFormat, nil, &pb) == kCVReturnSuccess,
+              let pixelBuffer = pb else { return nil }
+
+        CVPixelBufferLockBaseAddress(pixelBuffer, [])
+        defer { CVPixelBufferUnlockBaseAddress(pixelBuffer, []) }
+
+        for (i, plane) in planes.enumerated() {
+            guard let dstAddr = CVPixelBufferGetBaseAddressOfPlane(pixelBuffer, i) else { continue }
+            let dstBPR  = CVPixelBufferGetBytesPerRowOfPlane(pixelBuffer, i)
+            let srcBPR  = plane.bytesPerRow
+            let copyBPR = min(srcBPR, dstBPR)
+            let rows    = min(plane.height, CVPixelBufferGetHeightOfPlane(pixelBuffer, i))
+            fileData.withUnsafeBytes { raw in
+                let src = raw.baseAddress!.advanced(by: plane.dataOffset)
+                for row in 0..<rows {
+                    memcpy(dstAddr.advanced(by: row * dstBPR),
+                           src.advanced(by: row * srcBPR),
+                           copyBPR)
+                }
+            }
+        }
+
+        return pixelBuffer
+    }
+
     // MARK: - EXR Frame Export
     
     func saveEXRFrame(_ pixelBuffer: CVPixelBuffer, to url: URL, completion: ((Result<Void, Error>) -> Void)? = nil) {

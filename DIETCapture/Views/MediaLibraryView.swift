@@ -12,7 +12,12 @@ struct MediaLibraryView: View {
     @State private var selectedSession: RecordedSession?
     @State private var sessionToDelete: RecordedSession?
     @State private var showDeleteConfirmation = false
-    
+    @Environment(EXRPostProcessingService.self) private var postProcessor
+
+    private var hasPendingSessions: Bool {
+        sessions.contains { if case .pending = $0.conversionStatus { return true }; return false }
+    }
+
     var body: some View {
         NavigationStack {
             ZStack {
@@ -39,6 +44,18 @@ struct MediaLibraryView: View {
             .navigationTitle("Library")
             .navigationBarTitleDisplayMode(.large)
             .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbar {
+                if hasPendingSessions {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button {
+                            postProcessor.convertAllPending(in: sessions) { refreshSessions() }
+                        } label: {
+                            Label("Convert All", systemImage: "arrow.triangle.2.circlepath")
+                        }
+                        .disabled(postProcessor.isConverting)
+                    }
+                }
+            }
             .sheet(item: $selectedSession) { session in
                 SessionDetailView(session: session, onDelete: {
                     deleteSession(session)
@@ -106,7 +123,10 @@ struct SessionCardView: View {
     let onDelete: () -> Void
     
     @State private var thumbnail: UIImage?
+    @Environment(EXRPostProcessingService.self) private var postProcessor
     
+    private var isBeingConverted: Bool { postProcessor.currentSessionID == session.id }
+
     var body: some View {
         Button(action: onTap) {
             HStack(spacing: 14) {
@@ -147,6 +167,9 @@ struct SessionCardView: View {
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     
+                    // Conversion status badge
+                    conversionBadge
+                    
                     Text(session.date, style: .relative)
                         .font(.caption2)
                         .foregroundStyle(.secondary.opacity(0.7))
@@ -163,6 +186,14 @@ struct SessionCardView: View {
         }
         .buttonStyle(.plain)
         .contextMenu {
+            if case .pending = session.conversionStatus {
+                Button {
+                    postProcessor.convertSession(session) {}
+                } label: {
+                    Label("Convert to EXR", systemImage: "arrow.triangle.2.circlepath")
+                }
+                .disabled(postProcessor.isConverting)
+            }
             Button(role: .destructive) {
                 onDelete()
             } label: {
@@ -178,6 +209,30 @@ struct SessionCardView: View {
         }
         .task {
             thumbnail = await generateThumbnail(for: session)
+        }
+    }
+    
+    // MARK: - Conversion Badge
+
+    @ViewBuilder
+    private var conversionBadge: some View {
+        if isBeingConverted {
+            HStack(spacing: 4) {
+                ProgressView()
+                    .scaleEffect(0.6)
+                    .tint(.orange)
+                Text("Converting… \(Int(postProcessor.sessionProgress * 100))%")
+            }
+            .font(.caption2)
+            .foregroundStyle(.orange)
+        } else if case .pending(let count) = session.conversionStatus {
+            Label("\(count) frames pending conversion", systemImage: "arrow.triangle.2.circlepath")
+                .font(.caption2)
+                .foregroundStyle(.orange)
+        } else if session.conversionStatus == .converted {
+            Label("EXR converted", systemImage: "checkmark.circle.fill")
+                .font(.caption2)
+                .foregroundStyle(.green)
         }
     }
     
@@ -211,8 +266,10 @@ struct SessionDetailView: View {
     @State private var currentImage: UIImage?
     @State private var player: AVPlayer?
     @State private var showDeleteAlert = false
-    
+    @Environment(EXRPostProcessingService.self) private var postProcessor
     @Environment(\.dismiss) private var dismiss
+    
+    private var isBeingConverted: Bool { postProcessor.currentSessionID == session.id }
     
     var body: some View {
         NavigationStack {
@@ -269,6 +326,31 @@ struct SessionDetailView: View {
                         .padding(.horizontal, 24)
                     }
                     
+                    // Conversion progress banner (deferred EXR sessions)
+                    if isBeingConverted {
+                        VStack(spacing: 4) {
+                            ProgressView(value: postProcessor.sessionProgress)
+                                .tint(.orange)
+                            HStack {
+                                Text("Converting to EXR…")
+                                Spacer()
+                                Text("\(postProcessor.remainingFrames) frames remaining")
+                            }
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                        }
+                        .padding(.horizontal)
+                    } else if case .pending(let count) = session.conversionStatus {
+                        HStack(spacing: 6) {
+                            Image(systemName: "arrow.triangle.2.circlepath")
+                                .foregroundStyle(.orange)
+                            Text("\(count) frames awaiting EXR conversion")
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                        }
+                        .padding(.horizontal)
+                    }
+                    
                     // Session Info
                     sessionInfoBar
                 }
@@ -278,6 +360,17 @@ struct SessionDetailView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     HStack(spacing: 12) {
+                        // Convert Now — shown for sessions awaiting deferred EXR conversion
+                        if case .pending = session.conversionStatus {
+                            Button {
+                                postProcessor.convertSession(session) {}
+                            } label: {
+                                Image(systemName: "arrow.triangle.2.circlepath")
+                                    .foregroundStyle(.orange)
+                            }
+                            .disabled(postProcessor.isConverting)
+                        }
+                        
                         Button {
                             shareSession()
                         } label: {
