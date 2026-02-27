@@ -12,7 +12,6 @@ import CoreImage
 import VideoToolbox
 import ModelIO
 import SceneKit
-import UniformTypeIdentifiers
 import ImageIO
 
 struct UnsafeSendableWrapper<T>: @unchecked Sendable {
@@ -310,7 +309,7 @@ final class ExportService {
                 return
             }
             
-            guard let destination = CGImageDestinationCreateWithURL(url as CFURL, UTType.exr.identifier as CFString, 1, nil) else {
+            guard let destination = CGImageDestinationCreateWithURL(url as CFURL, "com.ilm.openexr-image" as CFString, 1, nil) else {
                 completion?(.failure(ExportError.fileWriteFailed))
                 return
             }
