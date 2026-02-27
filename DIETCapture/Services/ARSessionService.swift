@@ -55,10 +55,17 @@ final class ARSessionService: NSObject {
         // Select resolution — always use 30fps for ARKit (best tracking stability)
         // Actual capture FPS is handled by frame subsampling in CaptureViewModel
         let formats = ARWorldTrackingConfiguration.supportedVideoFormats
+        
+        guard !formats.isEmpty else {
+            print("[ARSessionService] No supported video formats available, cannot start session")
+            isRunning = false
+            return
+        }
+        
         var selectedFormat: ARConfiguration.VideoFormat
         
         if settings.videoResolution == .high {
-            // Highest resolution at 30fps
+            // Highest resolution at 30fps; formats is non-empty (guaranteed by guard above)
             selectedFormat = formats.filter({ $0.framesPerSecond == 30 })
                 .max(by: { ($0.imageResolution.width * $0.imageResolution.height) < ($1.imageResolution.width * $1.imageResolution.height) })
                 ?? formats.max(by: { ($0.imageResolution.width * $0.imageResolution.height) < ($1.imageResolution.width * $1.imageResolution.height) })!
