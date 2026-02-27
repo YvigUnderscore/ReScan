@@ -129,7 +129,7 @@ final class CaptureViewModel {
             captureInterval = appSettings.captureFPS.captureInterval
             lastCaptureTimestamp = -1
             
-            let sessionDir = try session.createSessionDirectory()
+            _ = try session.createSessionDirectory()
             session.startRecording()
             intrinsicsSaved = false
             

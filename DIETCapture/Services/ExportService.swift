@@ -121,6 +121,9 @@ final class ExportService {
                 ]
             ]
             print("[ExportService] Starting standard HEVC recording")
+            
+        case .exrSequence:
+             fatalError("Cannot start video recording for EXR sequence")
         }
         
         let writer = try AVAssetWriter(url: url, fileType: fileType)
