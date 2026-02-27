@@ -25,6 +25,10 @@ final class AppSettings: ObservableObject {
     /// HDR video capture
     @AppStorage("enableHDR") var enableHDR: Bool = true
     
+    // MARK: - External Storage
+    
+    @Published var hasExternalStorage: Bool = false
+    
     // MARK: - LiDAR Defaults
     
     @AppStorage("defaultMaxDistance") var defaultMaxDistance: Double = 5.0

@@ -7,7 +7,10 @@ import SwiftUI
 
 struct SettingsView: View {
     @StateObject private var settings = AppSettings.shared
+    @StateObject private var storageManager = SecurityScopedStorageManager.shared
     @Environment(\.dismiss) private var dismiss
+    
+    @State private var showFileImporter = false
     
     private var supportsAppleLog: Bool {
         ExportService.supportsAppleLog
@@ -28,6 +31,12 @@ struct SettingsView: View {
                         ForEach(AppSettings.CaptureFPS.allCases) { fps in
                             Text(fps.label).tag(fps)
                         }
+                    }
+                    
+                    if settings.captureEXR && settings.captureFPS.rawValue > 2 {
+                        Text("⚠️ High FPS with EXR is likely to cause dropped frames or crashes due to hardware bandwidth limits. 1 FPS is recommended.")
+                            .foregroundStyle(.red)
+                            .font(.footnote)
                     }
                 } header: {
                     Text("Video Recording")
@@ -50,7 +59,7 @@ struct SettingsView: View {
                     Text("Color & Encoding")
                 } footer: {
                     if settings.captureEXR {
-                        Text("Captures individual EXR frames instead of a video. EXR files are saved in extended linear sRGB space using half-float precision.\n\n⚠️ EXR sequences consume extreme amounts of storage and memory.")
+                        Text("Captures individual EXR frames instead of a video. EXR files are saved in extended linear sRGB space using half-float precision.\n\n⚠️ EXR sequences consume extreme amounts of storage and memory (~10MB/frame). It is highly recommended to use 1 FPS to avoid hardware bottlenecks (RAM buffers, CPU processing, and storage thermal throttling).")
                     } else if !supportsAppleLog {
                         Text("⚠️ Apple Log requires iPhone 15 Pro or later. This device will use HDR HEVC instead.\n\nApple Log captures in a logarithmic color space with ProRes 422 HQ compression — ideal for color grading to ACEScg or other color spaces without quality loss.")
                     } else {
@@ -84,6 +93,39 @@ struct SettingsView: View {
                     Text("LiDAR Defaults")
                 } footer: {
                     Text("Confidence controls the minimum quality threshold for depth measurements.\n\n• Low: Keeps all depth measurements, including uncertain ones. Maximum coverage but may include noise.\n• Medium (Recommended): Good balance between coverage and accuracy. Filters out the least reliable points.\n• High: Only keeps the most reliable depth measurements. Best accuracy but may have gaps in coverage.\n\nSmooth Depth applies temporal smoothing across frames to reduce noise and flickering in the depth map.")
+                }
+                
+                // MARK: - External Storage
+                Section {
+                    if let url = storageManager.externalStorageURL {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Current Storage Location")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Text(url.lastPathComponent)
+                                .font(.body)
+                                .fontWeight(.medium)
+                        }
+                        
+                        Button(role: .destructive) {
+                            storageManager.clearExternalURL()
+                        } label: {
+                            Text("Disconnect External Storage")
+                        }
+                    } else {
+                        Button {
+                            showFileImporter = true
+                        } label: {
+                            HStack {
+                                Image(systemName: "externaldrive.fill")
+                                Text("Select External Storage (SSD/USB-C)")
+                            }
+                        }
+                    }
+                } header: {
+                    Text("Storage")
+                } footer: {
+                    Text("Capture your files directly to an external USB-C drive. Required for high-fps EXR sequences.")
                 }
                 
                 // MARK: - Export Info
@@ -129,6 +171,19 @@ struct SettingsView: View {
                     Button("Done") { dismiss() }
                         .fontWeight(.semibold)
                         .foregroundStyle(.cyan)
+                }
+            }
+            .fileImporter(
+                isPresented: $showFileImporter,
+                allowedContentTypes: [.folder],
+                allowsMultipleSelection: false
+            ) { result in
+                switch result {
+                case .success(let urls):
+                    guard let selectedUrl = urls.first else { return }
+                    storageManager.saveExternalURL(selectedUrl)
+                case .failure(let error):
+                    print("Error selecting folder: \(error.localizedDescription)")
                 }
             }
         }

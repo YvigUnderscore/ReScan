@@ -56,11 +56,17 @@ final class CaptureSession {
     // MARK: - Methods
     
     func createSessionDirectory() throws -> URL {
-        let documentsDir = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!
+        let baseDir: URL
+        if let externalURL = SecurityScopedStorageManager.shared.externalStorageURL {
+            baseDir = externalURL
+        } else {
+            baseDir = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!
+        }
+        
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "yyyyMMdd_HHmmss"
         let sessionName = "scan_\(dateFormatter.string(from: Date()))"
-        let sessionDir = documentsDir.appendingPathComponent(sessionName)
+        let sessionDir = baseDir.appendingPathComponent(sessionName)
         
         var subdirectories = ["depth", "confidence"]
         
@@ -104,8 +110,9 @@ final class CaptureSession {
     }
     
     func updateStorageInfo() {
+        let pathToCheck = SecurityScopedStorageManager.shared.externalStorageURL?.path ?? NSHomeDirectory()
         if let attrs = try? fileManager.attributesOfFileSystem(
-            forPath: NSHomeDirectory()
+            forPath: pathToCheck
         ) {
             if let freeSize = attrs[.systemFreeSize] as? Int64 {
                 availableStorageMB = Double(freeSize) / (1024 * 1024)
@@ -135,52 +142,63 @@ final class CaptureSession {
     
     static func listSessions() -> [RecordedSession] {
         let fm = FileManager.default
-        guard let documentsDir = fm.urls(for: .documentDirectory, in: .userDomainMask).first else { return [] }
-        
-        guard let contents = try? fm.contentsOfDirectory(
-            at: documentsDir, includingPropertiesForKeys: [.creationDateKey],
-            options: [.skipsHiddenFiles]
-        ) else { return [] }
-        
         var sessions: [RecordedSession] = []
         
-        for dir in contents {
-            guard dir.hasDirectoryPath else { continue }
-            let name = dir.lastPathComponent
-            guard name.hasPrefix("scan_") else { continue }
+        // Helper to scan a directory for sessions
+        func scanDirectory(_ directory: URL) {
+            guard let contents = try? fm.contentsOfDirectory(
+                at: directory, includingPropertiesForKeys: [.creationDateKey],
+                options: [.skipsHiddenFiles]
+            ) else { return }
             
-            let depthDir = dir.appendingPathComponent("depth")
-            let confDir = dir.appendingPathComponent("confidence")
-            // Check for both .mp4 and .mov video files
-            let videoFileMp4 = dir.appendingPathComponent("rgb.mp4")
-            let videoFileMov = dir.appendingPathComponent("rgb.mov")
-            
-            var videoURL: URL?
-            if fm.fileExists(atPath: videoFileMp4.path) {
-                videoURL = videoFileMp4
-            } else if fm.fileExists(atPath: videoFileMov.path) {
-                videoURL = videoFileMov
-            }
+            for dir in contents {
+                guard dir.hasDirectoryPath else { continue }
+                let name = dir.lastPathComponent
+                guard name.hasPrefix("scan_") else { continue }
+                
+                let depthDir = dir.appendingPathComponent("depth")
+                let confDir = dir.appendingPathComponent("confidence")
+                // Check for both .mp4 and .mov video files
+                let videoFileMp4 = dir.appendingPathComponent("rgb.mp4")
+                let videoFileMov = dir.appendingPathComponent("rgb.mov")
+                
+                var videoURL: URL?
+                if fm.fileExists(atPath: videoFileMp4.path) {
+                    videoURL = videoFileMp4
+                } else if fm.fileExists(atPath: videoFileMov.path) {
+                    videoURL = videoFileMov
+                }
 
-            let depthFiles = (try? fm.contentsOfDirectory(atPath: depthDir.path))?.filter { $0.hasSuffix(".png") } ?? []
-            let hasConf = fm.fileExists(atPath: confDir.path)
-            
-            let creationDate = (try? fm.attributesOfItem(atPath: dir.path))?[.creationDate] as? Date ?? Date()
-            
-            // Thumbnail: first depth frame
-            let thumbURL = depthFiles.isEmpty ? nil : depthDir.appendingPathComponent(depthFiles.sorted().first!)
-            
-            sessions.append(RecordedSession(
-                id: name,
-                name: name,
-                date: creationDate,
-                directory: dir,
-                frameCount: depthFiles.count,
-                hasDepth: !depthFiles.isEmpty,
-                hasConfidence: hasConf,
-                videoURL: videoURL,
-                thumbnailURL: thumbURL
-            ))
+                let depthFiles = (try? fm.contentsOfDirectory(atPath: depthDir.path))?.filter { $0.hasSuffix(".png") } ?? []
+                let hasConf = fm.fileExists(atPath: confDir.path)
+                
+                let creationDate = (try? fm.attributesOfItem(atPath: dir.path))?[.creationDate] as? Date ?? Date()
+                
+                // Thumbnail: first depth frame
+                let thumbURL = depthFiles.isEmpty ? nil : depthDir.appendingPathComponent(depthFiles.sorted().first!)
+                
+                sessions.append(RecordedSession(
+                    id: name,
+                    name: name,
+                    date: creationDate,
+                    directory: dir,
+                    frameCount: depthFiles.count,
+                    hasDepth: !depthFiles.isEmpty,
+                    hasConfidence: hasConf,
+                    videoURL: videoURL,
+                    thumbnailURL: thumbURL
+                ))
+            }
+        }
+        
+        // Scan internal documents directory
+        if let documentsDir = fm.urls(for: .documentDirectory, in: .userDomainMask).first {
+            scanDirectory(documentsDir)
+        }
+        
+        // Scan external directory if available
+        if let externalDir = SecurityScopedStorageManager.shared.externalStorageURL {
+            scanDirectory(externalDir)
         }
         
         return sessions.sorted { $0.date > $1.date }
