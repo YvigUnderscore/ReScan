@@ -18,6 +18,7 @@ final class AppLogger {
     private var fileHandle: FileHandle?
     private var logURL: URL?
     private var didSetupFile = false
+    private let queue = DispatchQueue(label: "com.rescan.applogger")
     private let subsystem = "com.rescan.app"
     private let timestampFormatter: DateFormatter = {
         let f = DateFormatter()
@@ -80,12 +81,15 @@ final class AppLogger {
     // MARK: - Private
 
     private func write(level: String, message: String, category: String) {
-        setupFileIfNeeded()
         let timestamp = timestampFormatter.string(from: Date())
         let line = "[\(timestamp)] [\(level)] [\(category)] \(message)\n"
-        guard let data = line.data(using: .utf8), let handle = fileHandle else { return }
-        handle.write(data)
-        // Synchronize after every write so logs survive a crash
-        try? handle.synchronize()
+        guard let data = line.data(using: .utf8) else { return }
+        queue.async { [weak self] in
+            guard let self else { return }
+            self.setupFileIfNeeded()
+            guard let handle = self.fileHandle else { return }
+            handle.write(data)
+            try? handle.synchronize()
+        }
     }
 }
