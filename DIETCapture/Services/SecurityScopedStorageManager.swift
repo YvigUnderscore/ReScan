@@ -84,7 +84,9 @@ final class SecurityScopedStorageManager: ObservableObject {
             }
             
             if url.startAccessingSecurityScopedResource() {
-                externalStorageURL = url
+                DispatchQueue.main.async { [weak self] in
+                    self?.externalStorageURL = url
+                }
                 print("[SecurityScopedStorageManger] Restored bookmark for \(url.lastPathComponent)")
             } else {
                 print("[SecurityScopedStorageManger] Failed to start accessing restored URL.")
