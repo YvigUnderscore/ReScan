@@ -100,7 +100,9 @@ final class CaptureViewModel {
     private func resolveEncodingMode() -> VideoEncodingMode {
         let settings = AppSettings.shared
         
-        if settings.useAppleLog {
+        if settings.captureEXR {
+            return .exrSequence
+        } else if settings.useAppleLog {
             if supportsAppleLog {
                 return .appleLog
             } else {
@@ -223,8 +225,16 @@ final class CaptureViewModel {
             }
         }
         
-        // Append video frame
-        exportService.appendVideoFrame(capturedImage, timestamp: timestamp)
+        // Append video frame or save EXR frame
+        if activeEncodingMode == .exrSequence {
+            if let url = session.exrURL(for: frameIndex) {
+                exportQueue.async { [weak self] in
+                    self?.exportService.saveEXRFrame(capturedImage, to: url)
+                }
+            }
+        } else {
+            exportService.appendVideoFrame(capturedImage, timestamp: timestamp)
+        }
         
         // Append odometry
         exportService.appendOdometry(timestamp: timestamp, frame: frameIndex, pose: pose)

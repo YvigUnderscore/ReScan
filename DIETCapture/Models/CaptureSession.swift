@@ -36,9 +36,17 @@ final class CaptureSession {
     var depthDirectory: URL? { sessionDirectory?.appendingPathComponent("depth") }
     var confidenceDirectory: URL? { sessionDirectory?.appendingPathComponent("confidence") }
     
-    /// Video URL — .mov for ProRes/Apple Log, .mp4 for HEVC
+    /// Video URL — .mov for ProRes/Apple Log, .mp4 for HEVC. Nil if EXR sequence.
     var videoURL: URL? {
-        sessionDirectory?.appendingPathComponent("rgb.\(encodingMode.fileExtension)")
+        if encodingMode == .exrSequence { return nil }
+        return sessionDirectory?.appendingPathComponent("rgb.\(encodingMode.fileExtension)")
+    }
+    
+    var exrDirectory: URL? {
+        if encodingMode == .exrSequence {
+            return sessionDirectory?.appendingPathComponent("rgb")
+        }
+        return nil
     }
     
     var cameraMatrixURL: URL? { sessionDirectory?.appendingPathComponent("camera_matrix.csv") }
@@ -54,7 +62,11 @@ final class CaptureSession {
         let sessionName = "scan_\(dateFormatter.string(from: Date()))"
         let sessionDir = documentsDir.appendingPathComponent(sessionName)
         
-        let subdirectories = ["depth", "confidence"]
+        var subdirectories = ["depth", "confidence"]
+        
+        if encodingMode == .exrSequence {
+            subdirectories.append("rgb")
+        }
         
         for subdir in subdirectories {
             let dir = sessionDir.appendingPathComponent(subdir)
@@ -113,6 +125,10 @@ final class CaptureSession {
     
     func confidenceURL(for index: Int) -> URL? {
         confidenceDirectory?.appendingPathComponent("\(frameName(for: index)).png")
+    }
+    
+    func exrURL(for index: Int) -> URL? {
+        exrDirectory?.appendingPathComponent("\(frameName(for: index)).exr")
     }
     
     // MARK: - List All Sessions

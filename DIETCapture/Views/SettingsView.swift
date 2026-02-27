@@ -42,11 +42,16 @@ struct SettingsView: View {
                     
                     Toggle("Apple Log (ProRes)", isOn: $settings.useAppleLog)
                         .tint(.orange)
-                        .disabled(!supportsAppleLog)
+                        .disabled(!supportsAppleLog || settings.captureEXR)
+                        
+                    Toggle("EXR Sequence", isOn: $settings.captureEXR)
+                        .tint(.purple)
                 } header: {
                     Text("Color & Encoding")
                 } footer: {
-                    if !supportsAppleLog {
+                    if settings.captureEXR {
+                        Text("Captures individual EXR frames instead of a video. EXR files are saved in extended linear sRGB space using half-float precision.\n\n⚠️ EXR sequences consume extreme amounts of storage and memory.")
+                    } else if !supportsAppleLog {
                         Text("⚠️ Apple Log requires iPhone 15 Pro or later. This device will use HDR HEVC instead.\n\nApple Log captures in a logarithmic color space with ProRes 422 HQ compression — ideal for color grading to ACEScg or other color spaces without quality loss.")
                     } else {
                         Text("Apple Log captures in a logarithmic color space with ProRes 422 HQ compression — ideal for converting to ACEScg without quality loss.\n\n⚠️ ProRes files are significantly larger (~6 GB/min at 4K).")
@@ -92,7 +97,7 @@ struct SettingsView: View {
                     HStack {
                         Text("Video Codec")
                         Spacer()
-                        Text(settings.useAppleLog && supportsAppleLog ? "ProRes 422 HQ" : (settings.enableHDR ? "HDR HEVC" : "HEVC"))
+                        Text(settings.captureEXR ? "None (EXR Sequence)" : (settings.useAppleLog && supportsAppleLog ? "ProRes 422 HQ" : (settings.enableHDR ? "HDR HEVC" : "HEVC")))
                             .foregroundStyle(.secondary)
                     }
                     HStack {
@@ -100,8 +105,12 @@ struct SettingsView: View {
                         Spacer()
                     }
                     VStack(alignment: .leading, spacing: 4) {
-                        let ext = (settings.useAppleLog && supportsAppleLog) ? "mov" : "mp4"
-                        Text("• rgb.\(ext) (\(settings.useAppleLog && supportsAppleLog ? "ProRes 422 HQ, Apple Log" : (settings.enableHDR ? "HDR HEVC" : "HEVC")))").font(.caption).foregroundStyle(.secondary)
+                        if settings.captureEXR {
+                            Text("• rgb/ (EXR 16-bit float)").font(.caption).foregroundStyle(.secondary)
+                        } else {
+                            let ext = (settings.useAppleLog && supportsAppleLog) ? "mov" : "mp4"
+                            Text("• rgb.\(ext) (\(settings.useAppleLog && supportsAppleLog ? "ProRes 422 HQ, Apple Log" : (settings.enableHDR ? "HDR HEVC" : "HEVC")))").font(.caption).foregroundStyle(.secondary)
+                        }
                         Text("• camera_matrix.csv").font(.caption).foregroundStyle(.secondary)
                         Text("• odometry.csv").font(.caption).foregroundStyle(.secondary)
                         Text("• depth/ (16-bit PNG mm)").font(.caption).foregroundStyle(.secondary)

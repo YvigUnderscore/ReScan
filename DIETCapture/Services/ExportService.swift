@@ -12,6 +12,8 @@ import CoreImage
 import VideoToolbox
 import ModelIO
 import SceneKit
+import UniformTypeIdentifiers
+import ImageIO
 
 struct UnsafeSendableWrapper<T>: @unchecked Sendable {
     let value: T
@@ -284,6 +286,45 @@ final class ExportService {
                 } catch {
                     completion?(.failure(error))
                 }
+            }
+        }
+    }
+    
+    // MARK: - EXR Frame Export
+    
+    func saveEXRFrame(_ pixelBuffer: CVPixelBuffer, to url: URL, completion: ((Result<Void, Error>) -> Void)? = nil) {
+        let bufferWrapper = UnsafeSendableWrapper(value: pixelBuffer)
+        writeQueue.async {
+            let pb = bufferWrapper.value
+            
+            // Create CIImage to handle YUV to RGB conversion correctly
+            let ciImage = CIImage(cvPixelBuffer: pb)
+            
+            // Render to a 16-bit float CGImage (EXR natively uses half-float or full-float)
+            // Linear sRGB (or Rec.2020) is preferred for EXR
+            let colorSpace = CGColorSpace(name: CGColorSpace.extendedLinearSRGB) ?? CGColorSpaceCreateDeviceRGB()
+            let context = CIContext(options: nil)
+            
+            guard let cgImage = context.createCGImage(ciImage, from: ciImage.extent, format: .RGBAh, colorSpace: colorSpace) else {
+                completion?(.failure(ExportError.conversionFailed))
+                return
+            }
+            
+            guard let destination = CGImageDestinationCreateWithURL(url as CFURL, UTType.exr.identifier as CFString, 1, nil) else {
+                completion?(.failure(ExportError.fileWriteFailed))
+                return
+            }
+            
+            let options: [CFString: Any] = [
+                kCGImageDestinationLossyCompressionQuality: 1.0
+            ]
+            
+            CGImageDestinationAddImage(destination, cgImage, options as CFDictionary)
+            if CGImageDestinationFinalize(destination) {
+                print("[ExportService] Saved EXR to \(url.lastPathComponent)")
+                completion?(.success(()))
+            } else {
+                completion?(.failure(ExportError.fileWriteFailed))
             }
         }
     }

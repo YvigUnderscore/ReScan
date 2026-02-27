@@ -105,6 +105,7 @@ enum VideoEncodingMode: String, CaseIterable, Identifiable {
     case appleLog = "Apple Log (ProRes)"
     case hdrHEVC = "HDR HEVC"
     case standardHEVC = "HEVC"
+    case exrSequence = "EXR Sequence (Linear)"
     
     var id: String { rawValue }
     
@@ -112,6 +113,7 @@ enum VideoEncodingMode: String, CaseIterable, Identifiable {
         switch self {
         case .appleLog: return "mov"
         case .hdrHEVC, .standardHEVC: return "mp4"
+        case .exrSequence: return "exr"
         }
     }
     
