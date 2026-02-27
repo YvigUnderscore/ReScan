@@ -5,6 +5,7 @@
 
 import SwiftUI
 import ARKit
+import AVFoundation
 
 struct ContentView: View {
     @State private var viewModel = CaptureViewModel()

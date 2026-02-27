@@ -138,7 +138,7 @@ final class ExportService {
             print("[ExportService] Starting standard HEVC recording")
             
         case .exrSequence:
-             fatalError("Cannot start video recording for EXR sequence")
+            throw ExportError.invalidEncodingMode
         }
         
         let writer = try AVAssetWriter(url: url, fileType: fileType)
@@ -623,6 +623,7 @@ enum ExportError: LocalizedError {
     case fileWriteFailed
     case colorSpaceUnavailable
     case queueSaturated
+    case invalidEncodingMode
     
     var errorDescription: String? {
         switch self {
@@ -631,6 +632,7 @@ enum ExportError: LocalizedError {
         case .fileWriteFailed: return "File write failed"
         case .colorSpaceUnavailable: return "Required linear sRGB color space is unavailable on this device"
         case .queueSaturated: return "EXR write queue is saturated; frame dropped"
+        case .invalidEncodingMode: return "Cannot start video recording for EXR sequence mode"
         }
     }
 }
