@@ -33,6 +33,7 @@ final class EXRPostProcessingService {
     private let conversionQueue = DispatchQueue(label: "com.rescan.exr.postprocess", qos: .utility)
     private var isCancelled = false
 
+    @ObservationIgnored
     private lazy var ciContext: CIContext = {
         CIContext(options: [
             .useSoftwareRenderer: false,
