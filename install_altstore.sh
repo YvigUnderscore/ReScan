@@ -126,6 +126,8 @@ MODE=${MODE:-1}
 
 echo ""
 echo "You will need your Apple ID and Password (use an App-Specific Password)."
+echo -e "${YELLOW}Note: If Apple requires Two-Factor Authentication (2FA), AltServer will prompt you${NC}"
+echo -e "${YELLOW}to enter the 6-digit verification code sent to your trusted device or phone number.${NC}"
 echo -n "Enter Apple ID (email): "
 read APPLE_ID
 echo -n "Enter Apple Password: "
@@ -148,17 +150,17 @@ if [ "$MODE" == "1" ] && [ ! -z "$IPA_PATH" ]; then
     echo "Installing App: $IPA_PATH"
     echo "Please keep your device UNLOCKED."
     sudo -v
-    printf '%s\n' "$APPLE_PASSWORD" | sudo ALTSERVER_ANISETTE_SERVER=$ALTSERVER_ANISETTE_SERVER "$ALTSERVER_BIN" $ADB_ARGS "$IPA_PATH"
+    { printf '%s\n' "$APPLE_PASSWORD"; cat; } | sudo ALTSERVER_ANISETTE_SERVER=$ALTSERVER_ANISETTE_SERVER "$ALTSERVER_BIN" $ADB_ARGS "$IPA_PATH"
 elif [ "$MODE" == "1" ] && [ -z "$IPA_PATH" ]; then
     echo -e "${RED}Cannot install directly: No IPA file found.${NC}"
     echo "Switching to Server Mode..."
     sudo -v
-    printf '%s\n' "$APPLE_PASSWORD" | sudo ALTSERVER_ANISETTE_SERVER=$ALTSERVER_ANISETTE_SERVER "$ALTSERVER_BIN" $ADB_ARGS
+    { printf '%s\n' "$APPLE_PASSWORD"; cat; } | sudo ALTSERVER_ANISETTE_SERVER=$ALTSERVER_ANISETTE_SERVER "$ALTSERVER_BIN" $ADB_ARGS
 else
     echo "Starting Server Mode..."
     echo "Keep this window open. On your iPhone, open AltStore -> My Apps -> + -> Select the IPA."
     sudo -v
-    printf '%s\n' "$APPLE_PASSWORD" | sudo ALTSERVER_ANISETTE_SERVER=$ALTSERVER_ANISETTE_SERVER "$ALTSERVER_BIN" $ADB_ARGS
+    { printf '%s\n' "$APPLE_PASSWORD"; cat; } | sudo ALTSERVER_ANISETTE_SERVER=$ALTSERVER_ANISETTE_SERVER "$ALTSERVER_BIN" $ADB_ARGS
 fi
 
 echo ""
