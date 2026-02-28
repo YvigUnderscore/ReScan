@@ -292,6 +292,88 @@ final class ExportService {
         }
     }
     
+    // MARK: - EXR Conversion (post-capture, from video)
+
+    /// Reads every frame from `videoURL`, converts each to linear-sRGB EXR (half-float),
+    /// and writes them to `outputDirectory` as zero-padded `000000.exr`, `000001.exr`, …
+    /// `progress` is called on the main thread with values 0…1.
+    /// `completion` is called on the main thread when done.
+    func convertVideoToEXR(
+        videoURL: URL,
+        outputDirectory: URL,
+        progress: @escaping (Double) -> Void,
+        completion: @escaping (Result<Int, Error>) -> Void
+    ) {
+        writeQueue.async {
+            do {
+                let fm = FileManager.default
+                try fm.createDirectory(at: outputDirectory, withIntermediateDirectories: true)
+
+                let asset = AVURLAsset(url: videoURL)
+                // `tracks(withMediaType:)` is deprecated in iOS 16+ in favour of the async
+                // `loadTracks(withMediaType:)`, but inside a serial DispatchQueue we cannot
+                // directly `await`. The synchronous accessor remains functional on iOS 17.
+                guard let track = asset.tracks(withMediaType: .video).first else {
+                    DispatchQueue.main.async { completion(.failure(ExportError.conversionFailed)) }
+                    return
+                }
+
+                let duration = CMTimeGetSeconds(asset.duration)
+                let frameRate = track.nominalFrameRate > 0 ? Double(track.nominalFrameRate) : 30.0
+                let estimatedFrameCount = max(1, Int(duration * frameRate))
+
+                let readerSettings: [String: Any] = [
+                    kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA
+                ]
+
+                let reader = try AVAssetReader(asset: asset)
+                let output = AVAssetReaderTrackOutput(track: track, outputSettings: readerSettings)
+                reader.add(output)
+                reader.startReading()
+
+                let ciContext = CIContext(options: nil)
+                let colorSpace = CGColorSpace(name: CGColorSpace.extendedLinearSRGB)
+                    ?? CGColorSpaceCreateDeviceRGB()
+
+                var frameIndex = 0
+
+                while let sampleBuffer = output.copyNextSampleBuffer() {
+                    guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { continue }
+
+                    let ciImage = CIImage(cvPixelBuffer: pixelBuffer)
+
+                    guard let cgImage = ciContext.createCGImage(
+                        ciImage, from: ciImage.extent, format: .RGBAh, colorSpace: colorSpace
+                    ) else { continue }
+
+                    let frameName = String(format: "%06d", frameIndex)
+                    let frameURL = outputDirectory.appendingPathComponent("\(frameName).exr")
+
+                    guard let destination = CGImageDestinationCreateWithURL(
+                        frameURL as CFURL, "com.ilm.openexr-image" as CFString, 1, nil
+                    ) else { continue }
+
+                    CGImageDestinationAddImage(destination, cgImage, nil)
+                    CGImageDestinationFinalize(destination)
+
+                    frameIndex += 1
+                    // Cap slightly below 1.0 so the UI doesn't flash "100%" before the
+                    // completion handler fires and performs any final housekeeping.
+                    let progressValue = min(Double(frameIndex) / Double(estimatedFrameCount), 0.99)
+                    DispatchQueue.main.async { progress(progressValue) }
+                }
+
+                print("[ExportService] EXR conversion complete: \(frameIndex) frames → \(outputDirectory.lastPathComponent)")
+                DispatchQueue.main.async {
+                    progress(1.0)
+                    completion(.success(frameIndex))
+                }
+            } catch {
+                DispatchQueue.main.async { completion(.failure(error)) }
+            }
+        }
+    }
+
     // MARK: - EXR Frame Export
     
     func saveEXRFrame(_ pixelBuffer: CVPixelBuffer, to url: URL, completion: ((Result<Void, Error>) -> Void)? = nil) {

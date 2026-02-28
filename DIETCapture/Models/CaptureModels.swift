@@ -257,8 +257,12 @@ struct RecordedSession: Identifiable, Hashable {
     let hasConfidence: Bool
     let videoURL: URL?
     let thumbnailURL: URL?
-    
+    let hasEXR: Bool
+    let exrDirectory: URL?
+
     var hasVideo: Bool { videoURL != nil }
+    /// True when the session has a video file that has not yet been converted to an EXR sequence.
+    var canConvertToEXR: Bool { hasVideo && !hasEXR }
 
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
     static func == (lhs: RecordedSession, rhs: RecordedSession) -> Bool { lhs.id == rhs.id }
