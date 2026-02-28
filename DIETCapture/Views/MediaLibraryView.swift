@@ -29,28 +29,33 @@ struct MediaLibraryView: View {
             ZStack {
                 Color.black.ignoresSafeArea()
 
-                ScrollView {
-                    LazyVStack(spacing: 12) {
-                        if sessions.isEmpty {
-                            emptyState
-                        } else {
-                            ForEach(sessions) { session in
-                                SessionCardView(
-                                    session: session,
-                                    isConverting: convertingSessionID == session.id,
-                                    conversionProgress: convertingSessionID == session.id ? conversionProgress : 0,
-                                    onTap: { selectedSession = session },
-                                    onDelete: {
-                                        sessionToDelete = session
-                                        showDeleteConfirmation = true
-                                    },
-                                    onConvert: { convertSession(session) }
-                                )
-                            }
+                List {
+                    if sessions.isEmpty {
+                        emptyState
+                            .listRowBackground(Color.clear)
+                            .listRowSeparator(.hidden)
+                    } else {
+                        ForEach(sessions) { session in
+                            SessionCardView(
+                                session: session,
+                                isConverting: convertingSessionID == session.id,
+                                conversionProgress: convertingSessionID == session.id ? conversionProgress : 0,
+                                onTap: { selectedSession = session },
+                                onDelete: {
+                                    sessionToDelete = session
+                                    showDeleteConfirmation = true
+                                },
+                                onConvert: { convertSession(session) },
+                                onShare: { shareSession(session) }
+                            )
+                            .listRowBackground(Color.clear)
+                            .listRowSeparator(.hidden)
+                            .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
                         }
                     }
-                    .padding()
                 }
+                .listStyle(.plain)
+                .scrollContentBackground(.hidden)
 
                 // Global conversion progress banner
                 if let id = convertingSessionID,
@@ -174,6 +179,15 @@ struct MediaLibraryView: View {
         )
     }
 
+    private func shareSession(_ session: RecordedSession) {
+        guard FileManager.default.fileExists(atPath: session.directory.path) else { return }
+        let activityVC = UIActivityViewController(activityItems: [session.directory], applicationActivities: nil)
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+           let rootVC = windowScene.windows.first?.rootViewController {
+            rootVC.present(activityVC, animated: true)
+        }
+    }
+
     private func convertAllSessions() {
         var pending = sessions.filter { $0.canConvertToEXR }
 
@@ -222,6 +236,7 @@ struct SessionCardView: View {
     let onTap: () -> Void
     let onDelete: () -> Void
     let onConvert: () -> Void
+    let onShare: () -> Void
 
     @State private var thumbnail: UIImage?
 
@@ -293,9 +308,20 @@ struct SessionCardView: View {
             }
             .padding(12)
             .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .strokeBorder(session.hasEXR ? .green.opacity(0.5) : .clear, lineWidth: 1.5)
+            )
         }
         .buttonStyle(.plain)
         .contextMenu {
+            if !session.hasEXR {
+                Button {
+                    onShare()
+                } label: {
+                    Label("Share", systemImage: "square.and.arrow.up")
+                }
+            }
             if session.canConvertToEXR {
                 Button {
                     onConvert()
@@ -307,6 +333,16 @@ struct SessionCardView: View {
                 onDelete()
             } label: {
                 Label("Delete", systemImage: "trash")
+            }
+        }
+        .swipeActions(edge: .leading, allowsFullSwipe: true) {
+            if !session.hasEXR {
+                Button {
+                    onShare()
+                } label: {
+                    Label("Share", systemImage: "square.and.arrow.up")
+                }
+                .tint(.blue)
             }
         }
         .swipeActions(edge: .trailing) {
@@ -437,10 +473,12 @@ struct SessionDetailView: View {
                             }
                         }
 
-                        Button {
-                            shareSession()
-                        } label: {
-                            Image(systemName: "square.and.arrow.up")
+                        if !session.hasEXR {
+                            Button {
+                                shareSession()
+                            } label: {
+                                Image(systemName: "square.and.arrow.up")
+                            }
                         }
 
                         Button(role: .destructive) {
