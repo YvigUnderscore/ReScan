@@ -22,3 +22,30 @@ targets:
         CODE_SIGN_STYLE: Manual
         CODE_SIGN_IDENTITY: ""
         PRODUCT_NAME: ReScan
+    dependencies:
+      - target: ReScanWidget
+        embed: true
+        codeSign: false
+
+  ReScanWidget:
+    type: app-extension
+    platform: iOS
+    sources:
+      - ReScanWidget
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.rescan.app.widget
+        INFOPLIST_FILE: ReScanWidget/Info.plist
+        MARKETING_VERSION: 1.0
+        CURRENT_PROJECT_VERSION: 1
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SUPPORTED_PLATFORMS: iphonesimulator iphoneos
+        DEVELOPMENT_TEAM: ""
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: ""
+        PRODUCT_NAME: ReScanWidget
+        SWIFT_SWIFT3_OBJC_INFERENCE: Default
+    dependencies:
+      - sdk: WidgetKit.framework
+      - sdk: SwiftUI.framework
+      - sdk: ActivityKit.framework

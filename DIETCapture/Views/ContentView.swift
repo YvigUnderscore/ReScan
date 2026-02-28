@@ -1,18 +1,56 @@
 // ContentView.swift
 // ReScan
 //
-// Root view with tab bar: Capture and Media Library.
+// Root view with a modern floating tab bar and full-screen content areas.
 
 import SwiftUI
 import ARKit
+
+// MARK: - Tab Definition
+
+private enum AppTab: Int, CaseIterable {
+    case capture = 0
+    case library = 1
+    case remap   = 2
+    case settings = 3
+
+    var icon: String {
+        switch self {
+        case .capture:  return "camera.fill"
+        case .library:  return "photo.stack.fill"
+        case .remap:    return "server.rack"
+        case .settings: return "gearshape.fill"
+        }
+    }
+
+    var label: String {
+        switch self {
+        case .capture:  return "Capture"
+        case .library:  return "Library"
+        case .remap:    return "ReMap"
+        case .settings: return "Settings"
+        }
+    }
+
+    var accentColor: Color {
+        switch self {
+        case .capture:  return .cyan
+        case .library:  return .purple
+        case .remap:    return .blue
+        case .settings: return .gray
+        }
+    }
+}
+
+// MARK: - ContentView
 
 struct ContentView: View {
     @State private var viewModel = CaptureViewModel()
     @State private var showSplash = true
     @State private var hasPermissions = false
     @State private var permissionsChecked = false
-    @State private var selectedTab = 0
-    
+    @State private var selectedTab: AppTab = .capture
+
     var body: some View {
         Group {
             if showSplash {
@@ -25,129 +63,200 @@ struct ContentView: View {
             } else if !hasPermissions {
                 permissionsView
             } else {
-                TabView(selection: $selectedTab) {
-                    ViewfinderView(viewModel: viewModel)
-                        .tabItem {
-                            Image(systemName: "camera.fill")
-                            Text("Capture")
-                        }
-                        .tag(0)
-                    
-                    MediaLibraryView()
-                        .tabItem {
-                            Image(systemName: "photo.stack.fill")
-                            Text("Library")
-                        }
-                        .tag(1)
-                    
-                    ReMapView()
-                        .tabItem {
-                            Image(systemName: "server.rack")
-                            Text("ReMap")
-                        }
-                        .tag(2)
-                        
-                    SettingsView()
-                        .tabItem {
-                            Image(systemName: "gear")
-                            Text("Settings")
-                        }
-                        .tag(3)
-                }
-                .tint(.cyan)
-                .preferredColorScheme(.dark)
+                mainInterface
             }
         }
         .task {
-            // Check permissions and keep splash screen visible for at least 2.2 seconds for animation
             async let authDelay: () = Task.sleep(nanoseconds: 2_200_000_000)
             async let authCheck: () = checkPermissions()
-            
             _ = await (try? authDelay, authCheck)
-            
             withAnimation(.easeInOut(duration: 0.4)) {
                 showSplash = false
             }
         }
     }
-    
+
+    // MARK: - Main Interface
+
+    private var mainInterface: some View {
+        ZStack(alignment: .bottom) {
+            // Full-screen content for each tab
+            Group {
+                switch selectedTab {
+                case .capture:
+                    ViewfinderView(viewModel: viewModel)
+                        .ignoresSafeArea()
+                        .padding(.bottom, 90) // Clear room for floating tab bar
+                case .library:
+                    MediaLibraryView()
+                case .remap:
+                    ReMapView()
+                case .settings:
+                    SettingsView()
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            // Floating pill tab bar
+            floatingTabBar
+        }
+        .preferredColorScheme(.dark)
+        .ignoresSafeArea(.keyboard)
+    }
+
+    // MARK: - Floating Tab Bar
+
+    private var floatingTabBar: some View {
+        HStack(spacing: 0) {
+            ForEach(AppTab.allCases, id: \.rawValue) { tab in
+                tabButton(tab)
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 10)
+        .background(.ultraThinMaterial, in: Capsule())
+        .overlay(
+            Capsule()
+                .strokeBorder(.white.opacity(0.12), lineWidth: 0.5)
+        )
+        .shadow(color: .black.opacity(0.4), radius: 20, y: 8)
+        .padding(.horizontal, 20)
+        .padding(.bottom, 12)
+    }
+
+    @ViewBuilder
+    private func tabButton(_ tab: AppTab) -> some View {
+        let isSelected = selectedTab == tab
+
+        Button {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                selectedTab = tab
+            }
+        } label: {
+            VStack(spacing: 4) {
+                Image(systemName: tab.icon)
+                    .font(.system(size: isSelected ? 20 : 18, weight: isSelected ? .semibold : .regular))
+                    .foregroundStyle(isSelected ? tab.accentColor : .white.opacity(0.45))
+                    .scaleEffect(isSelected ? 1.05 : 1.0)
+
+                Text(tab.label)
+                    .font(.system(size: 9, weight: isSelected ? .semibold : .regular))
+                    .foregroundStyle(isSelected ? tab.accentColor : .white.opacity(0.45))
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 6)
+            .background(
+                isSelected
+                    ? tab.accentColor.opacity(0.15).clipShape(RoundedRectangle(cornerRadius: 12))
+                    : Color.clear
+            )
+            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isSelected)
+        }
+        .buttonStyle(.plain)
+    }
+
     // MARK: - Loading
-    
+
     private var loadingView: some View {
         ZStack {
-            LinearGradient(
-                colors: [Color(red: 0.05, green: 0.05, blue: 0.12), .black],
-                startPoint: .top, endPoint: .bottom
-            ).ignoresSafeArea()
-            
-            VStack(spacing: 24) {
-                Image(systemName: "viewfinder")
-                    .font(.system(size: 48))
-                    .foregroundStyle(
-                        LinearGradient(colors: [.cyan, .blue], startPoint: .topLeading, endPoint: .bottomTrailing)
-                    )
-                    .symbolEffect(.pulse, options: .repeating)
-                
-                Text("ReScan")
-                    .font(.system(size: 32, weight: .bold, design: .rounded))
-                    .foregroundStyle(
-                        LinearGradient(colors: [.white, .cyan.opacity(0.8)], startPoint: .leading, endPoint: .trailing)
-                    )
-                
-                ProgressView()
-                    .tint(.cyan)
-                    .scaleEffect(1.2)
+            MeshGradientBackground()
+
+            VStack(spacing: 28) {
+                ZStack {
+                    Circle()
+                        .fill(.cyan.opacity(0.08))
+                        .frame(width: 110, height: 110)
+                    Image(systemName: "viewfinder")
+                        .font(.system(size: 52, weight: .ultraLight))
+                        .foregroundStyle(
+                            LinearGradient(colors: [.cyan, .blue], startPoint: .topLeading, endPoint: .bottomTrailing)
+                        )
+                        .symbolEffect(.pulse, options: .repeating)
+                }
+
+                VStack(spacing: 8) {
+                    Text("ReScan")
+                        .font(.system(size: 34, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                    ProgressView()
+                        .tint(.cyan)
+                        .scaleEffect(1.2)
+                }
             }
         }
     }
-    
+
     // MARK: - No LiDAR
-    
+
     private var noLiDARView: some View {
         ZStack {
             Color.black.ignoresSafeArea()
-            VStack(spacing: 24) {
+            VStack(spacing: 28) {
                 Image(systemName: "sensor.tag.radiowaves.forward.fill")
-                    .font(.system(size: 64))
-                    .foregroundStyle(.red)
-                Text("LiDAR Required")
-                    .font(.title).fontWeight(.bold).foregroundStyle(.white)
-                Text("This app requires an iPhone with LiDAR sensor.\n(iPhone 12 Pro or newer)")
-                    .font(.body).foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center).padding(.horizontal, 40)
+                    .font(.system(size: 72))
+                    .foregroundStyle(.red.gradient)
+                VStack(spacing: 10) {
+                    Text("LiDAR Required")
+                        .font(.title.bold())
+                        .foregroundStyle(.white)
+                    Text("ReScan requires an iPhone with LiDAR.\n(iPhone 12 Pro or newer)")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 40)
+                }
             }
         }
     }
-    
+
     // MARK: - Permissions
-    
+
     private var permissionsView: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
-            VStack(spacing: 24) {
-                Image(systemName: "camera.fill")
-                    .font(.system(size: 64)).foregroundStyle(.cyan)
-                Text("Camera Access Required")
-                    .font(.title2).fontWeight(.bold).foregroundStyle(.white)
-                Text("ReScan needs access to your camera and LiDAR sensor.")
-                    .font(.body).foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center).padding(.horizontal, 40)
+            MeshGradientBackground()
+
+            VStack(spacing: 32) {
+                ZStack {
+                    Circle()
+                        .fill(.cyan.opacity(0.1))
+                        .frame(width: 120, height: 120)
+                    Image(systemName: "camera.fill")
+                        .font(.system(size: 52))
+                        .foregroundStyle(.cyan.gradient)
+                }
+
+                VStack(spacing: 12) {
+                    Text("Camera Access Required")
+                        .font(.title2.bold())
+                        .foregroundStyle(.white)
+                    Text("ReScan needs access to your camera and LiDAR sensor to capture 3D data.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 40)
+                }
+
                 Button {
                     if let url = URL(string: UIApplication.openSettingsURLString) {
                         UIApplication.shared.open(url)
                     }
                 } label: {
-                    Text("Open Settings")
-                        .font(.headline).foregroundStyle(.black)
-                        .padding(.horizontal, 32).padding(.vertical, 14)
-                        .background(.cyan, in: Capsule())
+                    HStack(spacing: 8) {
+                        Image(systemName: "gear")
+                        Text("Open Settings")
+                            .fontWeight(.semibold)
+                    }
+                    .foregroundStyle(.black)
+                    .padding(.horizontal, 36)
+                    .padding(.vertical, 16)
+                    .background(.cyan, in: Capsule())
                 }
             }
         }
     }
-    
+
     // MARK: - Permission Check
-    
+
     private func checkPermissions() async {
         let status = AVCaptureDevice.authorizationStatus(for: .video)
         switch status {
@@ -159,5 +268,29 @@ struct ContentView: View {
             hasPermissions = false
         }
         permissionsChecked = true
+    }
+}
+
+// MARK: - Mesh Gradient Background
+
+private struct MeshGradientBackground: View {
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+            RadialGradient(
+                colors: [.cyan.opacity(0.12), .clear],
+                center: .topLeading,
+                startRadius: 0,
+                endRadius: 400
+            )
+            .ignoresSafeArea()
+            RadialGradient(
+                colors: [.blue.opacity(0.08), .clear],
+                center: .bottomTrailing,
+                startRadius: 0,
+                endRadius: 350
+            )
+            .ignoresSafeArea()
+        }
     }
 }
