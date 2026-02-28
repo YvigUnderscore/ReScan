@@ -29,6 +29,9 @@ final class ReMapViewModel {
     var uploadSource: ReMapUploadSource = .video
     var showSourcePicker: Bool = false
     
+    /// Name of the currently selected dataset (used for notifications)
+    var selectedDatasetName: String?
+    
     // EXR generation
     var showEXRGenerationPrompt: Bool = false
     var isGeneratingEXR: Bool = false
@@ -150,6 +153,9 @@ final class ReMapViewModel {
     // MARK: - Upload
     
     func uploadDataset(session: RecordedSession) async {
+        // Track dataset name for notifications
+        selectedDatasetName = session.name
+        
         // Check if EXR is available and let user choose
         if session.hasEXR && session.hasVideo {
             showSourcePicker = true
@@ -200,6 +206,16 @@ final class ReMapViewModel {
             }
         }
         
+        let datasetName = session.name
+        selectedDatasetName = datasetName
+        
+        // Start Live Activity for upload phase
+        LiveActivityService.shared.startActivity(
+            jobId: session.id,
+            datasetName: datasetName,
+            step: "Preparing dataset…"
+        )
+        
         // Step 1: Create ZIP
         isCreatingZIP = true
         zipProgress = 0
@@ -207,6 +223,13 @@ final class ReMapViewModel {
         do {
             let zipURL = try await api.createDatasetZIP(session: session, source: uploadSource) { progress in
                 self.zipProgress = progress
+                Task {
+                    await LiveActivityService.shared.updateActivity(
+                        status: "uploading",
+                        progress: progress * 0.4,
+                        step: "Compressing dataset…"
+                    )
+                }
             }
             isCreatingZIP = false
             
@@ -216,6 +239,13 @@ final class ReMapViewModel {
             
             let response = try await api.uploadDatasetStandard(zipURL: zipURL) { progress in
                 self.uploadProgress = progress
+                Task {
+                    await LiveActivityService.shared.updateActivity(
+                        status: "uploading",
+                        progress: 0.4 + progress * 0.6,
+                        step: "Uploading to server…"
+                    )
+                }
             }
             
             lastDatasetId = response.datasetId
@@ -224,10 +254,19 @@ final class ReMapViewModel {
             // Cleanup temp zip
             try? FileManager.default.removeItem(at: zipURL)
             
+            NotificationService.shared.sendUploadCompletedNotification(datasetId: response.datasetId)
             showSuccessMessage("Dataset uploaded successfully! ID: \(response.datasetId)")
+            
+            // Update Live Activity: awaiting processing
+            await LiveActivityService.shared.updateActivity(
+                status: "processing",
+                progress: 0.0,
+                step: "Waiting to start processing…"
+            )
         } catch {
             isCreatingZIP = false
             isUploading = false
+            await LiveActivityService.shared.endActivity(success: false, step: "Upload failed")
             showErrorMessage(error.localizedDescription)
         }
     }
@@ -295,6 +334,19 @@ final class ReMapViewModel {
             
             showSuccessMessage("Processing started! Job ID: \(response.jobId)")
             
+            // Track job for background processing and schedule background task
+            let name = selectedDatasetName ?? "Dataset"
+            BackgroundTaskService.shared.trackJob(id: response.jobId, datasetName: name)
+            BackgroundTaskService.shared.scheduleProcessingTask()
+            NotificationService.shared.sendJobStartedNotification(jobId: response.jobId, datasetName: name)
+            
+            // Update Live Activity to processing phase
+            await LiveActivityService.shared.updateActivity(
+                status: "processing",
+                progress: 0.0,
+                step: "Processing started…"
+            )
+            
             // Start polling
             startPolling(jobId: response.jobId)
             
@@ -340,14 +392,40 @@ final class ReMapViewModel {
             activeJobStatus = status
             
             let parsedStatus = ReMapJobStatus(rawValue: status.status)
+            let progressDouble = Double(status.progress) / 100.0
+            let step = status.currentStep ?? status.message ?? status.status.capitalized
+            
+            // Update Live Activity with latest progress
+            if parsedStatus?.isTerminal != true {
+                await LiveActivityService.shared.updateActivity(
+                    status: status.status,
+                    progress: progressDouble,
+                    step: step
+                )
+            }
+            
             if parsedStatus?.isTerminal == true {
                 stopPolling()
                 await refreshJobs()
                 
+                // Remove from background tracking
+                BackgroundTaskService.shared.untrackJob(id: jobId)
+                
                 if parsedStatus == .completed {
                     showSuccessMessage("Job completed successfully!")
+                    NotificationService.shared.sendJobCompletedNotification(
+                        jobId: jobId,
+                        datasetName: selectedDatasetName ?? "Dataset"
+                    )
+                    await LiveActivityService.shared.endActivity(success: true, step: "Processing complete!")
                 } else if parsedStatus == .failed {
                     showErrorMessage("Job failed: \(status.message ?? "Unknown error")")
+                    NotificationService.shared.sendJobFailedNotification(
+                        jobId: jobId,
+                        datasetName: selectedDatasetName ?? "Dataset",
+                        error: status.message
+                    )
+                    await LiveActivityService.shared.endActivity(success: false, step: "Processing failed")
                 }
             }
         } catch {
@@ -421,7 +499,11 @@ final class ReMapViewModel {
                 stopPolling()
                 activeJobStatus = nil
                 activeJobId = nil
+                // End Live Activity
+                await LiveActivityService.shared.endActivity(success: false, step: "Cancelled")
             }
+            // Remove from background tracking
+            BackgroundTaskService.shared.untrackJob(id: jobId)
             await refreshJobs()
             showSuccessMessage("Job cancelled.")
         } catch {
@@ -469,6 +551,7 @@ final class ReMapViewModel {
     
     func cleanInterface() {
         lastDatasetId = nil
+        selectedDatasetName = nil
         activeJobId = nil
         activeJobStatus = nil
         jobLogs = []
