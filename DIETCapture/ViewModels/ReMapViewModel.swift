@@ -69,6 +69,21 @@ final class ReMapViewModel {
     
     private let api = ReMapAPIService.shared
     private var pollingTask: Task<Void, Never>?
+    private var autoRefreshTask: Task<Void, Never>?
+    
+    // MARK: - Computed Properties
+    
+    var processingJobs: [ReMapJobListItem] {
+        jobs.filter { !$0.parsedStatus.isTerminal }
+    }
+    
+    var completedJobs: [ReMapJobListItem] {
+        jobs.filter { $0.parsedStatus == .completed }
+    }
+    
+    var failedJobs: [ReMapJobListItem] {
+        jobs.filter { $0.parsedStatus == .failed || $0.parsedStatus == .cancelled }
+    }
     
     // MARK: - Initialization
     
@@ -304,7 +319,7 @@ final class ReMapViewModel {
             await self.pollJobStatus()
             
             while !Task.isCancelled && self.isPolling {
-                try? await Task.sleep(nanoseconds: 5_000_000_000) // 5 seconds
+                try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
                 guard !Task.isCancelled && self.isPolling else { break }
                 await self.pollJobStatus()
             }
@@ -418,6 +433,57 @@ final class ReMapViewModel {
     
     func applyPreset(_ preset: ReMapProcessingSettings) {
         processingSettings = preset
+    }
+    
+    // MARK: - Auto-Refresh (every 1 second)
+    
+    func startAutoRefresh() {
+        stopAutoRefresh()
+        autoRefreshTask = Task { @MainActor [weak self] in
+            guard let self = self else { return }
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+                guard !Task.isCancelled else { break }
+                await self.refreshJobs()
+            }
+        }
+    }
+    
+    func stopAutoRefresh() {
+        autoRefreshTask?.cancel()
+        autoRefreshTask = nil
+    }
+    
+    // MARK: - Clear Job History
+    
+    func clearJobHistory() {
+        jobs = []
+        activeJobId = nil
+        activeJobStatus = nil
+        stopPolling()
+    }
+    
+    // MARK: - Clean Interface
+    
+    func cleanInterface() {
+        lastDatasetId = nil
+        activeJobId = nil
+        activeJobStatus = nil
+        jobLogs = []
+        stopPolling()
+        isCreatingZIP = false
+        isUploading = false
+        uploadProgress = 0
+        zipProgress = 0
+        isGeneratingEXR = false
+        exrGenerationProgress = 0
+        isStartingProcess = false
+        isDownloading = false
+        downloadProgress = 0
+        showError = false
+        errorMessage = nil
+        showSuccess = false
+        successMessage = nil
     }
     
     // MARK: - Error/Success Helpers
