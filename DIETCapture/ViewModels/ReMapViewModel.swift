@@ -29,6 +29,12 @@ final class ReMapViewModel {
     var uploadSource: ReMapUploadSource = .video
     var showSourcePicker: Bool = false
     
+    // EXR generation
+    var showEXRGenerationPrompt: Bool = false
+    var isGeneratingEXR: Bool = false
+    var exrGenerationProgress: Double = 0
+    var pendingEXRSession: RecordedSession?
+    
     // MARK: - Processing State
     
     var isStartingProcess: Bool = false
@@ -85,8 +91,16 @@ final class ReMapViewModel {
         processingSettings.featureType = s.remapDefaultFeatureType
         processingSettings.matcherType = s.remapDefaultMatcherType
         processingSettings.cameraModel = s.remapDefaultCameraModel
-        processingSettings.singleCamera = s.remapDefaultSingleCamera
-        processingSettings.useGPU = s.remapDefaultUseGPU
+        processingSettings.maxKeypoints = s.remapDefaultMaxKeypoints
+        processingSettings.mapperType = s.remapDefaultMapperType
+        processingSettings.pairingMode = s.remapDefaultPairingMode
+        processingSettings.numThreads = s.remapDefaultNumThreads > 0 ? s.remapDefaultNumThreads : nil
+        processingSettings.strayConfidence = s.remapDefaultStrayConfidence
+        processingSettings.strayDepthSubsample = s.remapDefaultStrayDepthSubsample
+        processingSettings.strayGenPointcloud = s.remapDefaultStrayGenPointcloud
+        processingSettings.colorspaceEnabled = s.remapDefaultColorspaceEnabled
+        processingSettings.inputColorspace = ReMapColorspace(rawValue: s.remapDefaultInputColorspace) ?? .linear
+        processingSettings.outputColorspace = ReMapColorspace(rawValue: s.remapDefaultOutputColorspace) ?? .linear
     }
     
     func saveConfig() {
@@ -160,7 +174,13 @@ final class ReMapViewModel {
             }
         } else {
             guard session.hasEXR else {
-                showErrorMessage("No EXR sequence found in this dataset.")
+                // Propose auto-generation if video is available
+                if session.hasVideo {
+                    pendingEXRSession = session
+                    showEXRGenerationPrompt = true
+                } else {
+                    showErrorMessage("No EXR sequence or video found in this dataset.")
+                }
                 return
             }
         }
@@ -194,6 +214,52 @@ final class ReMapViewModel {
             isCreatingZIP = false
             isUploading = false
             showErrorMessage(error.localizedDescription)
+        }
+    }
+    
+    // MARK: - EXR Generation
+    
+    func generateEXRAndUpload(session: RecordedSession) async {
+        guard let videoURL = session.videoURL else {
+            showErrorMessage("No video file found for EXR conversion.")
+            return
+        }
+        
+        isGeneratingEXR = true
+        exrGenerationProgress = 0
+        
+        let exportService = ExportService()
+        let rgbDir = session.directory.appendingPathComponent("rgb")
+        
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            exportService.convertVideoToEXR(
+                videoURL: videoURL,
+                outputDirectory: rgbDir,
+                progress: { progress in
+                    self.exrGenerationProgress = progress
+                },
+                completion: { result in
+                    self.isGeneratingEXR = false
+                    self.exrGenerationProgress = 0
+                    
+                    switch result {
+                    case .success:
+                        continuation.resume()
+                    case .failure(let error):
+                        self.showErrorMessage("EXR generation failed: \(error.localizedDescription)")
+                        continuation.resume()
+                    }
+                }
+            )
+        }
+        
+        // Re-read sessions to get updated hasEXR state
+        let updatedSessions = CaptureSession.listSessions()
+        if let updatedSession = updatedSessions.first(where: { $0.id == session.id }), updatedSession.hasEXR {
+            await performUpload(session: updatedSession)
+        } else if !isGeneratingEXR {
+            // Only show error if generation didn't already report a failure
+            showErrorMessage("EXR generation completed but no EXR files were found. Upload aborted.")
         }
     }
     

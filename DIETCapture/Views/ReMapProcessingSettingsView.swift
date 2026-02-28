@@ -47,6 +47,24 @@ struct ReMapProcessingSettingsView: View {
                         }
                         .pickerStyle(.menu)
                     }
+                    
+                    settingRow(title: "Mapper", tooltip: "mapper_type") {
+                        Picker("", selection: $settings.mapperType) {
+                            ForEach(ReMapProcessingSettings.mapperTypeOptions, id: \.self) { option in
+                                Text(option).tag(option)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                    }
+                    
+                    settingRow(title: "Pairing Mode", tooltip: "pairing_mode") {
+                        Picker("", selection: $settings.pairingMode) {
+                            ForEach(ReMapProcessingSettings.pairingModeOptions, id: \.self) { option in
+                                Text(option).tag(option)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                    }
                 } header: {
                     Text("General")
                 }
@@ -60,6 +78,19 @@ struct ReMapProcessingSettingsView: View {
                             }
                         }
                         .pickerStyle(.menu)
+                    }
+                    
+                    settingRow(title: "Max Keypoints", tooltip: "max_keypoints") {
+                        HStack {
+                            Slider(value: Binding(
+                                get: { Double(settings.maxKeypoints) },
+                                set: { settings.maxKeypoints = Int($0) }
+                            ), in: 1024...16384, step: 1024)
+                                .tint(.cyan)
+                            Text("\(settings.maxKeypoints)")
+                                .font(.system(.caption, design: .monospaced))
+                                .frame(width: 50)
+                        }
                     }
                 } header: {
                     Text("Feature Extraction")
@@ -89,23 +120,88 @@ struct ReMapProcessingSettingsView: View {
                         }
                         .pickerStyle(.menu)
                     }
-                    
-                    settingRow(title: "Single Camera", tooltip: "single_camera") {
-                        Toggle("", isOn: $settings.singleCamera)
-                            .tint(.cyan)
-                    }
                 } header: {
                     Text("Camera")
                 }
                 
-                // MARK: - Performance
+                // MARK: - LiDAR / Stray
                 Section {
-                    settingRow(title: "Use GPU", tooltip: "use_gpu") {
-                        Toggle("", isOn: $settings.useGPU)
+                    settingRow(title: "Confidence", tooltip: "stray_confidence") {
+                        Picker("", selection: $settings.strayConfidence) {
+                            Text("0 (Low)").tag(0)
+                            Text("1 (Medium)").tag(1)
+                            Text("2 (High)").tag(2)
+                        }
+                        .pickerStyle(.menu)
+                    }
+                    
+                    settingRow(title: "Depth Subsample", tooltip: "stray_depth_subsample") {
+                        HStack {
+                            Slider(value: Binding(
+                                get: { Double(settings.strayDepthSubsample) },
+                                set: { settings.strayDepthSubsample = Int($0) }
+                            ), in: 1...8, step: 1)
+                                .tint(.cyan)
+                            Text("\(settings.strayDepthSubsample)")
+                                .font(.system(.caption, design: .monospaced))
+                                .frame(width: 20)
+                        }
+                    }
+                    
+                    settingRow(title: "Generate Pointcloud", tooltip: "stray_gen_pointcloud") {
+                        Toggle("", isOn: $settings.strayGenPointcloud)
                             .tint(.cyan)
                     }
                 } header: {
+                    Text("LiDAR / Depth")
+                }
+                
+                // MARK: - Performance
+                Section {
+                    settingRow(title: "CPU Threads", tooltip: "num_threads") {
+                        HStack {
+                            Slider(value: Binding(
+                                get: { Double(settings.numThreads ?? 0) },
+                                set: { settings.numThreads = Int($0) == 0 ? nil : Int($0) }
+                            ), in: 0...32, step: 1)
+                                .tint(.cyan)
+                            Text(settings.numThreads.map { "\($0)" } ?? "Auto")
+                                .font(.system(.caption, design: .monospaced))
+                                .frame(width: 40)
+                        }
+                    }
+                } header: {
                     Text("Performance")
+                }
+                
+                // MARK: - Colorspace
+                Section {
+                    Toggle("Enable Colorspace Conversion", isOn: $settings.colorspaceEnabled)
+                        .tint(.cyan)
+                    
+                    if settings.colorspaceEnabled {
+                        settingRow(title: "Input Colorspace", tooltip: "") {
+                            Picker("", selection: $settings.inputColorspace) {
+                                ForEach(ReMapColorspace.allCases) { cs in
+                                    Text(cs.label).tag(cs)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                        }
+                        
+                        settingRow(title: "Output Colorspace", tooltip: "") {
+                            Picker("", selection: $settings.outputColorspace) {
+                                ForEach(ReMapColorspace.allCases) { cs in
+                                    Text(cs.label).tag(cs)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                        }
+                    }
+                } header: {
+                    Text("Colorspace")
+                } footer: {
+                    Text("When enabled, the server will convert images from the input colorspace to the output colorspace during processing.")
                 }
                 
                 // MARK: - Reset & Save Defaults
@@ -126,8 +222,16 @@ struct ReMapProcessingSettingsView: View {
                         s.remapDefaultFeatureType = settings.featureType
                         s.remapDefaultMatcherType = settings.matcherType
                         s.remapDefaultCameraModel = settings.cameraModel
-                        s.remapDefaultSingleCamera = settings.singleCamera
-                        s.remapDefaultUseGPU = settings.useGPU
+                        s.remapDefaultMaxKeypoints = settings.maxKeypoints
+                        s.remapDefaultMapperType = settings.mapperType
+                        s.remapDefaultPairingMode = settings.pairingMode
+                        s.remapDefaultNumThreads = settings.numThreads ?? 0
+                        s.remapDefaultStrayConfidence = settings.strayConfidence
+                        s.remapDefaultStrayDepthSubsample = settings.strayDepthSubsample
+                        s.remapDefaultStrayGenPointcloud = settings.strayGenPointcloud
+                        s.remapDefaultColorspaceEnabled = settings.colorspaceEnabled
+                        s.remapDefaultInputColorspace = settings.inputColorspace.rawValue
+                        s.remapDefaultOutputColorspace = settings.outputColorspace.rawValue
                     } label: {
                         HStack {
                             Image(systemName: "square.and.arrow.down")
@@ -158,18 +262,22 @@ struct ReMapProcessingSettingsView: View {
                 Text(title)
                     .font(.subheadline)
                 
-                Image(systemName: "info.circle")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                if !tooltip.isEmpty {
+                    Image(systemName: "info.circle")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                 
                 Spacer()
                 
                 content()
             }
             
-            Text(ReMapProcessingSettings.tooltip(for: tooltip))
-                .font(.caption2)
-                .foregroundStyle(.secondary.opacity(0.7))
+            if !tooltip.isEmpty {
+                Text(ReMapProcessingSettings.tooltip(for: tooltip))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary.opacity(0.7))
+            }
         }
         .padding(.vertical, 2)
     }
