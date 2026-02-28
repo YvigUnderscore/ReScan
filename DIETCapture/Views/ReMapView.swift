@@ -164,12 +164,12 @@ struct ReMapView: View {
                 Task {
                     await viewModel.checkServer()
                     await viewModel.refreshJobs()
+                    // Auto-select Active tab on first load if there are processing jobs
+                    if !viewModel.processingJobs.isEmpty && selectedTab == .newJob {
+                        selectedTab = .active
+                    }
                 }
                 viewModel.startAutoRefresh()
-            }
-            // Auto-select Active tab if there are processing jobs
-            if !viewModel.processingJobs.isEmpty {
-                selectedTab = .active
             }
         }
         .onDisappear {
@@ -1119,7 +1119,7 @@ private struct FlowLayout: Layout {
     var spacing: CGFloat = 6
     
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let width = proposal.width ?? .infinity
+        let width = proposal.replacingUnspecifiedDimensions().width
         var x: CGFloat = 0
         var y: CGFloat = 0
         var rowHeight: CGFloat = 0

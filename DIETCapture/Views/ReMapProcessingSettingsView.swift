@@ -610,7 +610,7 @@ struct ReMapProcessingSettingsView: View {
                     content()
                         .padding(14)
                 }
-                .transition(.opacity.combined(with: .move(edge: .top)))
+                .transition(.opacity)
             }
         }
         .background(Color(white: 0.07), in: RoundedRectangle(cornerRadius: 14))
