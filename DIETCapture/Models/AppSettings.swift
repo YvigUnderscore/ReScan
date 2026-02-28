@@ -9,6 +9,20 @@ import ARKit
 final class AppSettings: ObservableObject {
     static let shared = AppSettings()
     
+    // MARK: - ReMap Server
+    
+    @AppStorage("remapServerURL") var remapServerURL: String = ""
+    
+    // MARK: - ReMap Default Processing Settings
+    
+    @AppStorage("remapDefaultFPS") var remapDefaultFPS: Double = 4.0
+    @AppStorage("remapDefaultApproach") var remapDefaultApproach: String = "full_sfm"
+    @AppStorage("remapDefaultFeatureType") var remapDefaultFeatureType: String = "superpoint_aachen"
+    @AppStorage("remapDefaultMatcherType") var remapDefaultMatcherType: String = "superglue"
+    @AppStorage("remapDefaultCameraModel") var remapDefaultCameraModel: String = "PINHOLE"
+    @AppStorage("remapDefaultSingleCamera") var remapDefaultSingleCamera: Bool = true
+    @AppStorage("remapDefaultUseGPU") var remapDefaultUseGPU: Bool = true
+    
     // MARK: - Video Settings
     
     @AppStorage("videoResolution") var videoResolution: VideoResolution = .high

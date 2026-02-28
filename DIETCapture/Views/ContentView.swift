@@ -39,13 +39,20 @@ struct ContentView: View {
                             Text("Library")
                         }
                         .tag(1)
+                    
+                    ReMapView()
+                        .tabItem {
+                            Image(systemName: "server.rack")
+                            Text("ReMap")
+                        }
+                        .tag(2)
                         
                     SettingsView()
                         .tabItem {
                             Image(systemName: "gear")
                             Text("Settings")
                         }
-                        .tag(2)
+                        .tag(3)
                 }
                 .tint(.cyan)
                 .preferredColorScheme(.dark)
