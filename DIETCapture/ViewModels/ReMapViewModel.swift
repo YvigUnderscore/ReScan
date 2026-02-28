@@ -62,7 +62,7 @@ final class ReMapViewModel {
     // MARK: - Private
     
     private let api = ReMapAPIService.shared
-    private var pollingTimer: Timer?
+    private var pollingTask: Task<Void, Never>?
     
     // MARK: - Initialization
     
@@ -87,17 +87,6 @@ final class ReMapViewModel {
         processingSettings.cameraModel = s.remapDefaultCameraModel
         processingSettings.singleCamera = s.remapDefaultSingleCamera
         processingSettings.useGPU = s.remapDefaultUseGPU
-    }
-    
-    func saveDefaultSettings() {
-        let s = AppSettings.shared
-        s.remapDefaultFPS = processingSettings.fps
-        s.remapDefaultApproach = processingSettings.strayApproach
-        s.remapDefaultFeatureType = processingSettings.featureType
-        s.remapDefaultMatcherType = processingSettings.matcherType
-        s.remapDefaultCameraModel = processingSettings.cameraModel
-        s.remapDefaultSingleCamera = processingSettings.singleCamera
-        s.remapDefaultUseGPU = processingSettings.useGPU
     }
     
     func saveConfig() {
@@ -243,22 +232,22 @@ final class ReMapViewModel {
         activeJobId = jobId
         isPolling = true
         
-        pollingTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { [weak self] _ in
+        pollingTask = Task { @MainActor [weak self] in
             guard let self = self else { return }
-            Task { @MainActor in
+            // Immediate first poll
+            await self.pollJobStatus()
+            
+            while !Task.isCancelled && self.isPolling {
+                try? await Task.sleep(nanoseconds: 5_000_000_000) // 5 seconds
+                guard !Task.isCancelled && self.isPolling else { break }
                 await self.pollJobStatus()
             }
-        }
-        
-        // Immediate first poll
-        Task {
-            await pollJobStatus()
         }
     }
     
     func stopPolling() {
-        pollingTimer?.invalidate()
-        pollingTimer = nil
+        pollingTask?.cancel()
+        pollingTask = nil
         isPolling = false
     }
     

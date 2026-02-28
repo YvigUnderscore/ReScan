@@ -6,7 +6,7 @@
 
 import Foundation
 
-final class ReMapAPIService: NSObject, @unchecked Sendable {
+final class ReMapAPIService {
     static let shared = ReMapAPIService()
     
     // MARK: - Configuration
@@ -17,22 +17,6 @@ final class ReMapAPIService: NSObject, @unchecked Sendable {
             apiKey: KeychainService.shared.read(key: "remapAPIKey") ?? ""
         )
     }
-    
-    // Progress callback for uploads
-    var uploadProgressHandler: ((Double) -> Void)?
-    
-    private lazy var backgroundSession: URLSession = {
-        let config = URLSessionConfiguration.background(withIdentifier: "com.rescan.remap.upload")
-        config.isDiscretionary = false
-        config.sessionSendsLaunchEvents = true
-        config.allowsCellularAccess = true
-        return URLSession(configuration: config, delegate: self, delegateQueue: nil)
-    }()
-    
-    private var uploadContinuations: [String: CheckedContinuation<Data, Error>] = [:]
-    private var downloadContinuations: [String: CheckedContinuation<URL, Error>] = [:]
-    private var progressHandlers: [String: (Double) -> Void] = [:]
-    private let lock = NSLock()
     
     // MARK: - Health Check
     
@@ -49,44 +33,7 @@ final class ReMapAPIService: NSObject, @unchecked Sendable {
     
     // MARK: - Upload Dataset
     
-    func uploadDataset(zipURL: URL, progressHandler: @escaping (Double) -> Void) async throws -> ReMapUploadResponse {
-        let url = try makeURL("/upload")
-        let boundary = UUID().uuidString
-        
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("Bearer \(config.apiKey)", forHTTPHeaderField: "Authorization")
-        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
-        
-        let fileData = try Data(contentsOf: zipURL)
-        var body = Data()
-        body.append("--\(boundary)\r\n".data(using: .utf8)!)
-        body.append("Content-Disposition: form-data; name=\"file\"; filename=\"\(zipURL.lastPathComponent)\"\r\n".data(using: .utf8)!)
-        body.append("Content-Type: application/zip\r\n\r\n".data(using: .utf8)!)
-        body.append(fileData)
-        body.append("\r\n--\(boundary)--\r\n".data(using: .utf8)!)
-        
-        // Write body to temp file for background upload
-        let tempDir = FileManager.default.temporaryDirectory
-        let tempFile = tempDir.appendingPathComponent("remap_upload_\(UUID().uuidString).tmp")
-        try body.write(to: tempFile)
-        defer { try? FileManager.default.removeItem(at: tempFile) }
-        
-        let taskId = UUID().uuidString
-        
-        return try await withCheckedThrowingContinuation { continuation in
-            lock.lock()
-            uploadContinuations[taskId] = continuation as! CheckedContinuation<Data, Error>
-            progressHandlers[taskId] = progressHandler
-            lock.unlock()
-            
-            let task = backgroundSession.uploadTask(with: request, fromFile: tempFile)
-            task.taskDescription = taskId
-            task.resume()
-        } as! ReMapUploadResponse
-    }
-    
-    /// Standard (non-background) upload with progress tracking via delegate
+    /// Standard upload with progress tracking via delegate
     func uploadDatasetStandard(zipURL: URL, progressHandler: @escaping (Double) -> Void) async throws -> ReMapUploadResponse {
         let url = try makeURL("/upload")
         let boundary = UUID().uuidString
@@ -407,49 +354,6 @@ final class ReMapAPIService: NSObject, @unchecked Sendable {
             return error
         }
         return String(data: data, encoding: .utf8) ?? "Unknown error"
-    }
-}
-
-// MARK: - URLSessionDelegate (Background Upload)
-
-extension ReMapAPIService: URLSessionDataDelegate, URLSessionDownloadDelegate {
-    func urlSession(_ session: URLSession, task: URLSessionTask, didSendBodyData bytesSent: Int64, totalBytesSent: Int64, totalBytesExpectedToSend: Int64) {
-        guard let taskId = task.taskDescription else { return }
-        let progress = Double(totalBytesSent) / Double(totalBytesExpectedToSend)
-        lock.lock()
-        let handler = progressHandlers[taskId]
-        lock.unlock()
-        DispatchQueue.main.async {
-            handler?(progress)
-        }
-    }
-    
-    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
-        guard let taskId = task.taskDescription else { return }
-        lock.lock()
-        let continuation = uploadContinuations.removeValue(forKey: taskId)
-        progressHandlers.removeValue(forKey: taskId)
-        lock.unlock()
-        
-        if let error = error {
-            continuation?.resume(throwing: ReMapAPIError.networkError(error))
-        }
-    }
-    
-    func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
-        guard let taskId = dataTask.taskDescription else { return }
-        lock.lock()
-        let continuation = uploadContinuations.removeValue(forKey: taskId)
-        lock.unlock()
-        continuation?.resume(returning: data)
-    }
-    
-    func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
-        guard let taskId = downloadTask.taskDescription else { return }
-        lock.lock()
-        let continuation = downloadContinuations.removeValue(forKey: taskId)
-        lock.unlock()
-        continuation?.resume(returning: location)
     }
 }
 

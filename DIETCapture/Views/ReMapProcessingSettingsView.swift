@@ -158,14 +158,9 @@ struct ReMapProcessingSettingsView: View {
                 Text(title)
                     .font(.subheadline)
                 
-                Button {
-                    // Tooltip shown via popover/alert
-                } label: {
-                    Image(systemName: "info.circle")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .help(ReMapProcessingSettings.tooltip(for: tooltip))
+                Image(systemName: "info.circle")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 
                 Spacer()
                 
