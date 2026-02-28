@@ -146,9 +146,12 @@ struct ContentView: View {
             .frame(maxWidth: .infinity)
             .padding(.vertical, 6)
             .background(
-                isSelected
-                    ? tab.accentColor.opacity(0.15).clipShape(RoundedRectangle(cornerRadius: 12))
-                    : Color.clear
+                Group {
+                    if isSelected {
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(tab.accentColor.opacity(0.15))
+                    }
+                }
             )
             .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isSelected)
         }
