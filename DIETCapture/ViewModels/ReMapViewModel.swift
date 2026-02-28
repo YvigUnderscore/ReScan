@@ -305,13 +305,23 @@ final class ReMapViewModel {
         isDownloading = true
         downloadProgress = 0
         
+        // Sanitize jobId to only allow alphanumeric characters and hyphens
+        let safeJobId = jobId.filter { $0.isLetter || $0.isNumber || $0 == "-" }
+        guard !safeJobId.isEmpty else {
+            isDownloading = false
+            showErrorMessage("Invalid job ID.")
+            return
+        }
+        
         do {
-            let documentsDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+            guard let documentsDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+                throw ReMapAPIError.invalidResponse
+            }
             let resultDir = documentsDir.appendingPathComponent("ReMap_Results")
             try FileManager.default.createDirectory(at: resultDir, withIntermediateDirectories: true)
             
-            let destURL = resultDir.appendingPathComponent("result_\(jobId).zip")
-            let url = try await api.downloadResult(jobId: jobId, to: destURL)
+            let destURL = resultDir.appendingPathComponent("result_\(safeJobId).zip")
+            let url = try await api.downloadResult(jobId: safeJobId, to: destURL)
             lastDownloadedURL = url
             isDownloading = false
             showSuccessMessage("Result downloaded to Files app.")

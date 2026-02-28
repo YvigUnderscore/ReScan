@@ -38,9 +38,7 @@ final class ReMapAPIService {
         let url = try makeURL("/upload")
         let boundary = UUID().uuidString
         
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("Bearer \(config.apiKey)", forHTTPHeaderField: "Authorization")
+        var request = try makeAuthenticatedRequest(url: url, method: "POST")
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
         
         let fileData = try Data(contentsOf: zipURL)
@@ -69,9 +67,7 @@ final class ReMapAPIService {
     func startProcessing(datasetId: String, settings: ReMapProcessingSettings) async throws -> ReMapProcessResponse {
         let url = try makeURL("/process")
         
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("Bearer \(config.apiKey)", forHTTPHeaderField: "Authorization")
+        var request = try makeAuthenticatedRequest(url: url, method: "POST")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         
         let body: [String: Any] = [
@@ -89,10 +85,7 @@ final class ReMapAPIService {
     
     func jobStatus(jobId: String) async throws -> ReMapJobStatusResponse {
         let url = try makeURL("/jobs/\(jobId)/status")
-        
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.setValue("Bearer \(config.apiKey)", forHTTPHeaderField: "Authorization")
+        let request = try makeAuthenticatedRequest(url: url)
         
         let (data, response) = try await URLSession.shared.data(for: request)
         try validateResponse(response, data: data)
@@ -103,10 +96,7 @@ final class ReMapAPIService {
     
     func jobLogs(jobId: String) async throws -> ReMapJobLogsResponse {
         let url = try makeURL("/jobs/\(jobId)/logs")
-        
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.setValue("Bearer \(config.apiKey)", forHTTPHeaderField: "Authorization")
+        let request = try makeAuthenticatedRequest(url: url)
         
         let (data, response) = try await URLSession.shared.data(for: request)
         try validateResponse(response, data: data)
@@ -117,10 +107,7 @@ final class ReMapAPIService {
     
     func downloadResult(jobId: String, to destinationURL: URL) async throws -> URL {
         let url = try makeURL("/jobs/\(jobId)/result")
-        
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.setValue("Bearer \(config.apiKey)", forHTTPHeaderField: "Authorization")
+        let request = try makeAuthenticatedRequest(url: url)
         
         let (tempURL, response) = try await URLSession.shared.download(for: request)
         
@@ -149,10 +136,7 @@ final class ReMapAPIService {
     
     func listJobs() async throws -> [ReMapJobListItem] {
         let url = try makeURL("/jobs")
-        
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.setValue("Bearer \(config.apiKey)", forHTTPHeaderField: "Authorization")
+        let request = try makeAuthenticatedRequest(url: url)
         
         let (data, response) = try await URLSession.shared.data(for: request)
         try validateResponse(response, data: data)
@@ -164,10 +148,7 @@ final class ReMapAPIService {
     
     func cancelJob(jobId: String) async throws {
         let url = try makeURL("/jobs/\(jobId)/cancel")
-        
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("Bearer \(config.apiKey)", forHTTPHeaderField: "Authorization")
+        let request = try makeAuthenticatedRequest(url: url, method: "POST")
         
         let (data, response) = try await URLSession.shared.data(for: request)
         try validateResponse(response, data: data)
@@ -266,7 +247,7 @@ final class ReMapAPIService {
         }
         
         // Create ZIP using NSFileCoordinator
-        let zipURL = fm.temporaryDirectory.appendingPathComponent("\(session.name).zip")
+        let zipURL = fm.temporaryDirectory.appendingPathComponent("remap_\(UUID().uuidString).zip")
         if fm.fileExists(atPath: zipURL.path) {
             try fm.removeItem(at: zipURL)
         }
@@ -300,6 +281,16 @@ final class ReMapAPIService {
     }
     
     // MARK: - Helpers
+    
+    private func makeAuthenticatedRequest(url: URL, method: String = "GET") throws -> URLRequest {
+        guard !config.apiKey.isEmpty else {
+            throw ReMapAPIError.unauthorized
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = method
+        request.setValue("Bearer \(config.apiKey)", forHTTPHeaderField: "Authorization")
+        return request
+    }
     
     private func makeURL(_ path: String) throws -> URL {
         guard config.isConfigured || path == "/health" else {
