@@ -442,7 +442,9 @@ final class ReMapViewModel {
         autoRefreshTask = Task { @MainActor [weak self] in
             guard let self = self else { return }
             while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 1_000_000_000)
+                // Refresh more frequently when jobs are processing
+                let interval: UInt64 = self.processingJobs.isEmpty ? 5_000_000_000 : 1_000_000_000
+                try? await Task.sleep(nanoseconds: interval)
                 guard !Task.isCancelled else { break }
                 await self.refreshJobs()
             }

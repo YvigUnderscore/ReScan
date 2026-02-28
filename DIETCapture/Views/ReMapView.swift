@@ -1059,7 +1059,16 @@ struct ReMapLogsView: View {
                 if viewModel.isLoadingLogs {
                     ProgressView("Loading logs…")
                         .tint(.cyan)
-                } else if jobId.isEmpty || viewModel.jobLogs.isEmpty {
+                } else if jobId.isEmpty {
+                    VStack(spacing: 12) {
+                        Image(systemName: "questionmark.circle")
+                            .font(.system(size: 40))
+                            .foregroundStyle(.secondary.opacity(0.5))
+                        Text("No job selected")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                } else if viewModel.jobLogs.isEmpty {
                     VStack(spacing: 12) {
                         Image(systemName: "doc.text")
                             .font(.system(size: 40))
