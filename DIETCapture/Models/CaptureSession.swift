@@ -4,6 +4,7 @@
 // Represents one recording session. Stray Scanner-compatible directory structure.
 
 import Foundation
+import AVFoundation
 
 @Observable
 final class CaptureSession {
@@ -183,6 +184,17 @@ final class CaptureSession {
                 let hasEXR = !exrFiles.isEmpty
                 let exrDirectory: URL? = fm.fileExists(atPath: rgbDir.path) ? rgbDir : nil
                 
+                // Compute total disk size for the session directory
+                let diskSizeMB = directorySize(dir, fileManager: fm) / (1024 * 1024)
+                
+                // Video duration
+                var duration: TimeInterval?
+                if let vURL = videoURL {
+                    let asset = AVURLAsset(url: vURL)
+                    let seconds = asset.duration.seconds
+                    if seconds.isFinite && seconds > 0 { duration = seconds }
+                }
+                
                 sessions.append(RecordedSession(
                     id: name,
                     name: name,
@@ -194,7 +206,9 @@ final class CaptureSession {
                     videoURL: videoURL,
                     thumbnailURL: thumbURL,
                     hasEXR: hasEXR,
-                    exrDirectory: exrDirectory
+                    exrDirectory: exrDirectory,
+                    diskSizeMB: diskSizeMB,
+                    duration: duration
                 ))
             }
         }
@@ -221,6 +235,21 @@ final class CaptureSession {
         } catch {
             print("[CaptureSession] Failed to delete session: \(error)")
         }
+    }
+    
+    // MARK: - Directory Size Helper
+    
+    private static func directorySize(_ url: URL, fileManager: FileManager) -> Double {
+        guard let enumerator = fileManager.enumerator(
+            at: url,
+            includingPropertiesForKeys: [.fileSizeKey],
+            options: [.skipsHiddenFiles]
+        ) else { return 0 }
+        var total: Int64 = 0
+        for case let fileURL as URL in enumerator {
+            total += Int64((try? fileURL.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0)
+        }
+        return Double(total)
     }
 }
 

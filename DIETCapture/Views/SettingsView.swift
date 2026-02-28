@@ -78,6 +78,12 @@ struct SettingsView: View {
                     
                     Toggle("Smooth Depth", isOn: $settings.defaultSmoothing)
                         .tint(.cyan)
+                    
+                    Picker("Depth Color Map", selection: $settings.depthColorMap) {
+                        ForEach(AppSettings.DepthColorMap.allCases) { map in
+                            Text(map.rawValue).tag(map)
+                        }
+                    }
                 } header: {
                     Text("LiDAR Defaults")
                 } footer: {

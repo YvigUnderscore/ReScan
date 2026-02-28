@@ -294,9 +294,17 @@ struct SessionCardView: View {
                             .tint(.purple)
                             .frame(maxWidth: 160)
                     } else {
-                        Text(session.date, style: .relative)
-                            .font(.caption2)
-                            .foregroundStyle(.secondary.opacity(0.7))
+                        HStack(spacing: 8) {
+                            Text(session.date, style: .relative)
+                            if let dur = session.duration {
+                                Text("·")
+                                Label(sessionDurationString(dur), systemImage: "clock")
+                            }
+                            Text("·")
+                            Label(sessionDiskSizeString(session.diskSizeMB), systemImage: "internaldrive")
+                        }
+                        .font(.caption2)
+                        .foregroundStyle(.secondary.opacity(0.7))
                     }
                 }
 
@@ -383,6 +391,25 @@ struct SessionCardView: View {
             return nil
         }
     }
+    
+    }
+}
+
+// MARK: - Session Formatting Helpers
+
+private func sessionDurationString(_ seconds: TimeInterval) -> String {
+    let s = Int(seconds)
+    if s >= 3600 {
+        return String(format: "%d:%02d:%02d", s / 3600, (s % 3600) / 60, s % 60)
+    }
+    return String(format: "%d:%02d", s / 60, s % 60)
+}
+
+private func sessionDiskSizeString(_ mb: Double) -> String {
+    if mb >= 1024 {
+        return String(format: "%.1f GB", mb / 1024)
+    }
+    return String(format: "%.0f MB", mb)
 }
 
 // MARK: - Session Detail View
@@ -572,17 +599,25 @@ struct SessionDetailView: View {
     // MARK: - Session Info Bar
 
     private var sessionInfoBar: some View {
-        HStack(spacing: 16) {
-            Label("\(session.frameCount) frames", systemImage: "photo.stack")
-            if session.hasVideo { Label("RGB", systemImage: "video.fill") }
-            if session.hasDepth { Label("Depth", systemImage: "cube.fill") }
-            if session.hasConfidence { Label("Conf.", systemImage: "checkmark.shield.fill") }
-            if session.hasEXR {
-                Label("EXR ✓", systemImage: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
-            } else if session.canConvertToEXR {
-                Label("EXR available", systemImage: "arrow.triangle.2.circlepath")
-                    .foregroundStyle(.orange)
+        VStack(spacing: 6) {
+            HStack(spacing: 16) {
+                Label("\(session.frameCount) frames", systemImage: "photo.stack")
+                if session.hasVideo { Label("RGB", systemImage: "video.fill") }
+                if session.hasDepth { Label("Depth", systemImage: "cube.fill") }
+                if session.hasConfidence { Label("Conf.", systemImage: "checkmark.shield.fill") }
+                if session.hasEXR {
+                    Label("EXR ✓", systemImage: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                } else if session.canConvertToEXR {
+                    Label("EXR available", systemImage: "arrow.triangle.2.circlepath")
+                        .foregroundStyle(.orange)
+                }
+            }
+            HStack(spacing: 16) {
+                if let dur = session.duration {
+                    Label(sessionDurationString(dur), systemImage: "clock")
+                }
+                Label(sessionDiskSizeString(session.diskSizeMB), systemImage: "internaldrive")
             }
         }
         .font(.caption)
