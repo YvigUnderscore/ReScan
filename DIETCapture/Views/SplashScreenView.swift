@@ -59,6 +59,12 @@ struct SplashScreenView: View {
                         .frame(height: 2)
                         .frame(width: showGradientLine ? 160 : 0)
                         .opacity(showGradientLine ? 1 : 0)
+                    
+                    Text("The first VFX oriented scanning app")
+                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.55))
+                        .multilineTextAlignment(.center)
+                        .opacity(showGradientLine ? 1 : 0)
                 }
                 .offset(y: textOffset)
                 .opacity(textOpacity)

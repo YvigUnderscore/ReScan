@@ -62,6 +62,21 @@ final class DepthMapProcessor {
         }
     }
     
+    // MARK: - Colormaps
+    
+    enum ColorMap {
+        case jet, viridis, turbo
+    }
+    
+    /// Dispatches to the appropriate colormap function.
+    static func colormap(_ value: Float, map: ColorMap) -> (r: Float, g: Float, b: Float) {
+        switch map {
+        case .jet:     return jetColormap(value)
+        case .viridis: return viridisColormap(value)
+        case .turbo:   return turboColormap(value)
+        }
+    }
+    
     // MARK: - Jet Colormap
     
     /// Converts a depth value (normalized 0-1) to RGB using the jet colormap.
@@ -95,14 +110,60 @@ final class DepthMapProcessor {
         return (r, g, b)
     }
     
+    // MARK: - Viridis Colormap
+    
+    /// Approximates the Viridis perceptually-uniform colormap using polynomial regression
+    /// (Matplotlib reference: https://bids.github.io/colormap/).
+    private static func viridisColormap(_ value: Float) -> (r: Float, g: Float, b: Float) {
+        let v = max(0, min(1, value))
+        let r = Float(0.267 + v * (0.004 + v * (1.289 + v * (-2.179 + v * 1.619))))
+        let g = Float(0.004 + v * (0.982 + v * (-0.242 + v * (-0.562 + v * 0.818))))
+        let b = Float(0.329 + v * (1.498 + v * (-2.809 + v * (2.512 + v * (-0.930 + v * (-0.600))))))
+        return (max(0, min(1, r)), max(0, min(1, g)), max(0, min(1, b)))
+    }
+    
+    // MARK: - Turbo Colormap
+    
+    /// Approximates the Turbo colormap using 4-segment piecewise linear interpolation
+    /// over the canonical RGB keypoints (Google Brain, 2019).
+    private static func turboColormap(_ value: Float) -> (r: Float, g: Float, b: Float) {
+        let v = max(0, min(1, value))
+        let r: Float
+        let g: Float
+        let b: Float
+        if v < 0.25 {
+            let t = v / 0.25
+            r = 0.18 + t * (0.82)
+            g = 0.07 + t * (0.78)
+            b = 0.23 + t * (0.77)
+        } else if v < 0.5 {
+            let t = (v - 0.25) / 0.25
+            r = 1.0
+            g = 0.85 + t * 0.10
+            b = 1.0 - t * 1.0
+        } else if v < 0.75 {
+            let t = (v - 0.5) / 0.25
+            r = 1.0 - t * 0.20
+            g = 0.95 - t * 0.45
+            b = 0.0
+        } else {
+            let t = (v - 0.75) / 0.25
+            r = 0.80 - t * 0.60
+            g = 0.50 - t * 0.50
+            b = 0.0
+        }
+        return (max(0, min(1, r)), max(0, min(1, g)), max(0, min(1, b)))
+    }
+    
     // MARK: - Depth to RGBA Colormap
     
-    /// Generates an RGBA pixel buffer from a depth map using jet colormap.
+    /// Generates an RGBA pixel buffer from a depth map using the given colormap.
     static func depthToColormapRGBA(
         depthMap: CVPixelBuffer,
         minDepth: Float = 0.0,
         maxDepth: Float = 5.0,
-        opacity: Float = 0.5
+        opacity: Float = 0.5,
+        colorMap: ColorMap = .jet
     ) -> CVPixelBuffer? {
         CVPixelBufferLockBaseAddress(depthMap, .readOnly)
         defer { CVPixelBufferUnlockBaseAddress(depthMap, .readOnly) }
@@ -145,7 +206,7 @@ final class DepthMapProcessor {
                     outputPointer[outputOffset + 3] = 0 // A
                 } else {
                     let normalized = (depth - minDepth) / range
-                    let (r, g, b) = jetColormap(normalized)
+                    let (r, g, b) = colormap(normalized, map: colorMap)
                     
                     outputPointer[outputOffset] = UInt8(b * 255)     // B
                     outputPointer[outputOffset + 1] = UInt8(g * 255) // G
@@ -207,6 +268,41 @@ final class DepthMapProcessor {
         }
         
         return output
+    }
+    
+    // MARK: - Depth Histogram
+    
+    /// Computes a normalized histogram of valid depth values across `binCount` bins spanning [0, maxDepth].
+    /// Returns an array of `binCount` Float values in [0, 1] representing relative frequency.
+    static func depthHistogram(
+        _ depthMap: CVPixelBuffer,
+        maxDepth: Float,
+        binCount: Int = 32
+    ) -> [Float] {
+        CVPixelBufferLockBaseAddress(depthMap, .readOnly)
+        defer { CVPixelBufferUnlockBaseAddress(depthMap, .readOnly) }
+        
+        let width = CVPixelBufferGetWidth(depthMap)
+        let height = CVPixelBufferGetHeight(depthMap)
+        guard let base = CVPixelBufferGetBaseAddress(depthMap) else {
+            return [Float](repeating: 0, count: binCount)
+        }
+        
+        let pointer = base.assumingMemoryBound(to: Float32.self)
+        var bins = [Int](repeating: 0, count: binCount)
+        var totalValid = 0
+        
+        for i in 0..<(width * height) {
+            let v = pointer[i]
+            guard v > 0, !v.isNaN, !v.isInfinite, v <= maxDepth else { continue }
+            let bin = min(binCount - 1, Int(v / maxDepth * Float(binCount)))
+            bins[bin] += 1
+            totalValid += 1
+        }
+        
+        guard totalValid > 0 else { return [Float](repeating: 0, count: binCount) }
+        let maxBin = Float(bins.max() ?? 1)
+        return bins.map { Float($0) / maxBin }
     }
     
     // MARK: - Depth Statistics

@@ -21,6 +21,11 @@ final class LiDARViewModel {
     
     var viewMode: ViewMode = .rgb
     
+    // MARK: - Ghost Mesh
+    
+    /// When true, shows the translucent ARKit mesh overlay over the RGB feed.
+    var ghostMeshEnabled: Bool = false
+    
     // MARK: - State
     
     var isRunning: Bool { arService.isRunning }
@@ -104,11 +109,13 @@ final class LiDARViewModel {
             guard let depth = currentDepthMap else { return nil }
             guard let depthCopy = DepthMapProcessor.copyDepthMap(depth) else { return nil }
             DepthMapProcessor.filterByDistance(depthCopy, maxDistance: settings.maxDistance)
+            let colorMap = AppSettings.shared.depthColorMap.processorColorMap
             return DepthMapProcessor.depthToColormapRGBA(
                 depthMap: depthCopy,
                 minDepth: 0.0,
                 maxDepth: settings.maxDistance,
-                opacity: 1.0
+                opacity: 1.0,
+                colorMap: colorMap
             )
             
         case .confidence:
