@@ -177,6 +177,12 @@ final class CaptureSession {
                 // Thumbnail: first depth frame
                 let thumbURL = depthFiles.isEmpty ? nil : depthDir.appendingPathComponent(depthFiles.sorted().first!)
                 
+                // Detect EXR conversion status
+                let rgbDir = dir.appendingPathComponent("rgb")
+                let exrFiles = (try? fm.contentsOfDirectory(atPath: rgbDir.path))?.filter { $0.hasSuffix(".exr") } ?? []
+                let hasEXR = !exrFiles.isEmpty
+                let exrDirectory: URL? = fm.fileExists(atPath: rgbDir.path) ? rgbDir : nil
+                
                 sessions.append(RecordedSession(
                     id: name,
                     name: name,
@@ -186,7 +192,9 @@ final class CaptureSession {
                     hasDepth: !depthFiles.isEmpty,
                     hasConfidence: hasConf,
                     videoURL: videoURL,
-                    thumbnailURL: thumbURL
+                    thumbnailURL: thumbURL,
+                    hasEXR: hasEXR,
+                    exrDirectory: exrDirectory
                 ))
             }
         }
