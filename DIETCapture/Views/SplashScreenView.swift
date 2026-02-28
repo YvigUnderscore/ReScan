@@ -110,7 +110,7 @@ struct SplashScreenView: View {
                 Spacer()
 
                 // Version badge
-                Text("v1.0")
+                Text("v1.1.0")
                     .font(.system(size: 11, weight: .medium, design: .monospaced))
                     .foregroundStyle(.white.opacity(0.2))
                     .opacity(taglineOpacity)
