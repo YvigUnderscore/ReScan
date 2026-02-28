@@ -140,6 +140,51 @@ struct SettingsView: View {
                     Text("Capture your files directly to an external USB-C drive. Required for high-fps EXR sequences.")
                 }
                 
+                // MARK: - ReMap Server
+                Section {
+                    HStack {
+                        Text("Server URL")
+                        Spacer()
+                        Text(settings.remapServerURL.isEmpty ? "Not configured" : settings.remapServerURL)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                    HStack {
+                        Text("API Key")
+                        Spacer()
+                        Text(KeychainService.shared.read(key: "remapAPIKey") != nil ? "••••••••" : "Not set")
+                            .foregroundStyle(.secondary)
+                    }
+                } header: {
+                    Text("ReMap Server")
+                } footer: {
+                    Text("Configure your ReMap server connection in the ReMap tab. The API key is securely stored in the iOS Keychain.")
+                }
+                
+                // MARK: - ReMap Default Processing
+                Section {
+                    Picker("Feature Type", selection: $settings.remapDefaultFeatureType) {
+                        ForEach(ReMapProcessingSettings.featureTypeOptions, id: \.self) { option in
+                            Text(option).tag(option)
+                        }
+                    }
+                    Picker("Matcher Type", selection: $settings.remapDefaultMatcherType) {
+                        ForEach(ReMapProcessingSettings.matcherTypeOptions, id: \.self) { option in
+                            Text(option).tag(option)
+                        }
+                    }
+                    HStack {
+                        Text("Default FPS")
+                        Spacer()
+                        Text("\(settings.remapDefaultFPS, specifier: "%.1f")")
+                            .foregroundStyle(.secondary)
+                    }
+                } header: {
+                    Text("ReMap Default Processing")
+                } footer: {
+                    Text("Default processing settings used when sending datasets to ReMap. You can override these per-job in the ReMap tab.")
+                }
+                
                 // MARK: - Export Info
                 Section {
                     HStack {
