@@ -340,9 +340,16 @@ struct ReMapView: View {
     private var activeJobCard: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Image(systemName: "gearshape.2.fill")
-                    .foregroundStyle(.blue)
-                    .symbolEffect(.rotate, isActive: viewModel.isPolling)
+                Group {
+                    if #available(iOS 18.0, *) {
+                        Image(systemName: "gearshape.2.fill")
+                            .foregroundStyle(.blue)
+                            .symbolEffect(.rotate, isActive: viewModel.isPolling)
+                    } else {
+                        Image(systemName: "gearshape.2.fill")
+                            .foregroundStyle(.blue)
+                    }
+                }
                 
                 Text("Active Job")
                     .font(.headline)

@@ -6,7 +6,7 @@
 
 import Foundation
 
-final class ReMapAPIService {
+final class ReMapAPIService: Sendable {
     static let shared = ReMapAPIService()
     
     // MARK: - Configuration
