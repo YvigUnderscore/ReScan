@@ -9,6 +9,28 @@ import ARKit
 final class AppSettings: ObservableObject {
     static let shared = AppSettings()
     
+    // MARK: - ReMap Server
+    
+    @AppStorage("remapServerURL") var remapServerURL: String = ""
+    
+    // MARK: - ReMap Default Processing Settings
+    
+    @AppStorage("remapDefaultFPS") var remapDefaultFPS: Double = 5.0
+    @AppStorage("remapDefaultApproach") var remapDefaultApproach: String = "full_sfm"
+    @AppStorage("remapDefaultFeatureType") var remapDefaultFeatureType: String = "superpoint_aachen"
+    @AppStorage("remapDefaultMatcherType") var remapDefaultMatcherType: String = "superpoint+lightglue"
+    @AppStorage("remapDefaultCameraModel") var remapDefaultCameraModel: String = "PINHOLE"
+    @AppStorage("remapDefaultMaxKeypoints") var remapDefaultMaxKeypoints: Int = 8192
+    @AppStorage("remapDefaultMapperType") var remapDefaultMapperType: String = "GLOMAP"
+    @AppStorage("remapDefaultPairingMode") var remapDefaultPairingMode: String = "exhaustive"
+    @AppStorage("remapDefaultNumThreads") var remapDefaultNumThreads: Int = 0
+    @AppStorage("remapDefaultStrayConfidence") var remapDefaultStrayConfidence: Int = 2
+    @AppStorage("remapDefaultStrayDepthSubsample") var remapDefaultStrayDepthSubsample: Int = 2
+    @AppStorage("remapDefaultStrayGenPointcloud") var remapDefaultStrayGenPointcloud: Bool = true
+    @AppStorage("remapDefaultColorspaceEnabled") var remapDefaultColorspaceEnabled: Bool = false
+    @AppStorage("remapDefaultInputColorspace") var remapDefaultInputColorspace: String = "linear"
+    @AppStorage("remapDefaultOutputColorspace") var remapDefaultOutputColorspace: String = "linear"
+    
     // MARK: - Video Settings
     
     @AppStorage("videoResolution") var videoResolution: VideoResolution = .high
