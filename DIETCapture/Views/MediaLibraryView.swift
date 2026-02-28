@@ -393,7 +393,6 @@ struct SessionCardView: View {
     }
     
     }
-}
 
 // MARK: - Session Formatting Helpers
 
