@@ -30,6 +30,8 @@ final class CaptureViewModel {
     
     var isRecording: Bool { session.state == .recording }
     var isSaving: Bool { session.state == .saving }
+    /// True while the app has queued a recording start but is waiting for the first mesh polygons.
+    var isWaitingForMesh: Bool = false
     var errorMessage: String?
     var showError: Bool = false
     
@@ -119,6 +121,7 @@ final class CaptureViewModel {
     // MARK: - Recording
     
     func startRecording() {
+        guard !isRecording && !isWaitingForMesh else { return }
         do {
             // Resolve encoding mode
             activeEncodingMode = resolveEncodingMode()
@@ -130,34 +133,61 @@ final class CaptureViewModel {
             lastCaptureTimestamp = -1
             
             _ = try session.createSessionDirectory()
-            session.startRecording()
-            intrinsicsSaved = false
             
-            // We start video recording when we get the first frame (need dimensions)
-            // Open odometry CSV
-            if let odometryURL = session.odometryURL {
-                exportService.openOdometryFile(at: odometryURL)
+            if appSettings.meshStartMode == .bruteForce {
+                beginCapture()
+            } else {
+                // WaitForPolygons: defer actual start until first mesh anchors arrive
+                isWaitingForMesh = true
             }
-            
-            // Start timer
-            recordingTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
-                self?.session.updateElapsedTime()
-                self?.session.updateStorageInfo()
-            }
-            
-            if storageAvailableMB < 1024 {
-                showError(message: "⚠️ Less than 1 GB storage remaining")
-            }
-            
-            print("[CaptureVM] Recording started — \(appSettings.captureFPS.label), encoding: \(activeEncodingMode.label)")
             
         } catch {
             showError(message: "Failed to create session: \(error.localizedDescription)")
         }
     }
     
+    /// Performs the actual recording start (opens video writer, odometry file, starts timer).
+    /// Called either immediately (BruteForce) or upon first mesh polygon detection.
+    private func beginCapture() {
+        isWaitingForMesh = false
+        session.startRecording()
+        intrinsicsSaved = false
+        
+        // Open odometry CSV
+        if let odometryURL = session.odometryURL {
+            exportService.openOdometryFile(at: odometryURL)
+        }
+        
+        // Start timer
+        recordingTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+            self?.session.updateElapsedTime()
+            self?.session.updateStorageInfo()
+        }
+        
+        let appSettings = AppSettings.shared
+        if storageAvailableMB < 1024 {
+            showError(message: "⚠️ Less than 1 GB storage remaining")
+        }
+        
+        print("[CaptureVM] Recording started — \(appSettings.captureFPS.label), encoding: \(activeEncodingMode.label)")
+    }
+    
     func stopRecording() {
+        // Cancel pending "wait for mesh" state
+        if isWaitingForMesh {
+            isWaitingForMesh = false
+            // Clean up the session directory that was pre-created
+            if let dir = session.sessionDirectory {
+                try? FileManager.default.removeItem(at: dir)
+                session.sessionDirectory = nil
+            }
+            return
+        }
+        
         guard isRecording else { return }
+        
+        // Hide ghost mesh overlay immediately so it is not visible in subsequent scans
+        lidar.ghostMeshEnabled = false
         
         session.stopRecording()
         recordingTimer?.invalidate()
@@ -183,6 +213,15 @@ final class CaptureViewModel {
     // MARK: - AR Frame Handling
     
     private func handleARFrame(_ frame: ARFrame) {
+        // While waiting for the first mesh polygons, watch for their arrival and then begin capture.
+        if isWaitingForMesh {
+            let hasMeshAnchors = frame.anchors.contains { $0 is ARMeshAnchor }
+            if hasMeshAnchors {
+                beginCapture()
+            }
+            return
+        }
+        
         guard session.state == .recording else { return }
         
         let timestamp = frame.timestamp

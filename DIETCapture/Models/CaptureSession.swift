@@ -187,6 +187,10 @@ final class CaptureSession {
                 // Compute total disk size for the session directory
                 let diskSizeMB = directorySize(dir, fileManager: fm) / (1024 * 1024)
                 
+                // Mesh
+                let meshObjURL = dir.appendingPathComponent("mesh.obj")
+                let meshURL: URL? = fm.fileExists(atPath: meshObjURL.path) ? meshObjURL : nil
+                
                 // Video duration
                 var duration: TimeInterval?
                 if let vURL = videoURL {
@@ -208,7 +212,8 @@ final class CaptureSession {
                     hasEXR: hasEXR,
                     exrDirectory: exrDirectory,
                     diskSizeMB: diskSizeMB,
-                    duration: duration
+                    duration: duration,
+                    meshURL: meshURL
                 ))
             }
         }
