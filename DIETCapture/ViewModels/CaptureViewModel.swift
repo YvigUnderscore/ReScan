@@ -221,7 +221,6 @@ final class CaptureViewModel {
         }
         
         // Clean up refinement service
-        meshRefinement?.reset()
         meshRefinement = nil
         
         // Finish video

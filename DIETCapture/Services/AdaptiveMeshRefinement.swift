@@ -236,7 +236,8 @@ final class AdaptiveMeshRefinement {
             return 0
         }
 
-        // Scale subdivision level with observation density, capped at max
+        // Scale subdivision level with observation density, capped at max.
+        // Integer division produces stepped levels: threshold..2*threshold → 1, 2*threshold..3*threshold → 2, etc.
         let level = min(maxSubdivisionLevel, 1 + (avgObs - subdivisionThreshold) / subdivisionThreshold)
         return max(0, level)
     }
