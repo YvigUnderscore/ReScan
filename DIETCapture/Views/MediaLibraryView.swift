@@ -1,7 +1,8 @@
 // MediaLibraryView.swift
 // ReScan
 //
-// Browse recorded scan sessions, preview passes, delete scans.
+// Browse recorded scan sessions, preview passes, delete scans,
+// and trigger manual EXR (linear sRGB) conversion.
 
 import SwiftUI
 import AVKit
@@ -12,38 +13,82 @@ struct MediaLibraryView: View {
     @State private var selectedSession: RecordedSession?
     @State private var sessionToDelete: RecordedSession?
     @State private var showDeleteConfirmation = false
-    
+    @State private var showConvertAllConfirmation = false
+
+    // EXR conversion state
+    @State private var exportService = ExportService()
+    @State private var convertingSessionID: String?
+    @State private var conversionProgress: Double = 0
+
+    private var hasConvertibleSessions: Bool {
+        sessions.contains { $0.canConvertToEXR }
+    }
+
     var body: some View {
         NavigationStack {
             ZStack {
                 Color.black.ignoresSafeArea()
-                
+
                 ScrollView {
                     LazyVStack(spacing: 12) {
                         if sessions.isEmpty {
                             emptyState
                         } else {
                             ForEach(sessions) { session in
-                                SessionCardView(session: session, onTap: {
-                                    selectedSession = session
-                                }, onDelete: {
-                                    sessionToDelete = session
-                                    showDeleteConfirmation = true
-                                })
+                                SessionCardView(
+                                    session: session,
+                                    isConverting: convertingSessionID == session.id,
+                                    conversionProgress: convertingSessionID == session.id ? conversionProgress : 0,
+                                    onTap: { selectedSession = session },
+                                    onDelete: {
+                                        sessionToDelete = session
+                                        showDeleteConfirmation = true
+                                    },
+                                    onConvert: { convertSession(session) }
+                                )
                             }
                         }
                     }
                     .padding()
                 }
+
+                // Global conversion progress banner
+                if let id = convertingSessionID,
+                   let session = sessions.first(where: { $0.id == id }) {
+                    VStack {
+                        Spacer()
+                        conversionBanner(session: session)
+                    }
+                }
             }
             .navigationTitle("Library")
             .navigationBarTitleDisplayMode(.large)
             .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbar {
+                if hasConvertibleSessions {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button {
+                            showConvertAllConfirmation = true
+                        } label: {
+                            Label("Convert All", systemImage: "arrow.triangle.2.circlepath")
+                                .foregroundStyle(.purple)
+                        }
+                        .disabled(convertingSessionID != nil)
+                    }
+                }
+            }
             .sheet(item: $selectedSession) { session in
-                SessionDetailView(session: session, onDelete: {
-                    deleteSession(session)
-                    selectedSession = nil
-                })
+                SessionDetailView(
+                    session: session,
+                    onDelete: {
+                        deleteSession(session)
+                        selectedSession = nil
+                    },
+                    onConvert: session.canConvertToEXR ? {
+                        selectedSession = nil
+                        convertSession(session)
+                    } : nil
+                )
             }
             .alert("Delete Scan?", isPresented: $showDeleteConfirmation) {
                 Button("Delete", role: .destructive) {
@@ -55,41 +100,111 @@ struct MediaLibraryView: View {
             } message: {
                 Text("This will permanently delete all data for \"\(sessionToDelete?.name ?? "")\".")
             }
+            .alert("Convert All to EXR?", isPresented: $showConvertAllConfirmation) {
+                Button("Convert", role: .none) { convertAllSessions() }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                let count = sessions.filter { $0.canConvertToEXR }.count
+                Text("Convert \(count) dataset\(count == 1 ? "" : "s") to EXR (linear sRGB). This may take several minutes and requires significant storage space.")
+            }
         }
         .onAppear {
             refreshSessions()
         }
     }
-    
+
+    // MARK: - Conversion Banner
+
+    private func conversionBanner(session: RecordedSession) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Image(systemName: "arrow.triangle.2.circlepath")
+                    .foregroundStyle(.purple)
+                Text("Converting \(session.name)…")
+                    .font(.caption).fontWeight(.semibold)
+                    .foregroundStyle(.white)
+                Spacer()
+                Text("\(Int(conversionProgress * 100))%")
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(.secondary)
+            }
+            ProgressView(value: conversionProgress)
+                .tint(.purple)
+        }
+        .padding(14)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14))
+        .padding(.horizontal, 16)
+        .padding(.bottom, 12)
+    }
+
     // MARK: - Methods
-    
+
     private func refreshSessions() {
         sessions = CaptureSession.listSessions()
     }
-    
+
     private func deleteSession(_ session: RecordedSession) {
         CaptureSession.deleteSession(session)
         withAnimation(.easeInOut(duration: 0.3)) {
             sessions.removeAll { $0.id == session.id }
         }
     }
-    
+
+    private func convertSession(_ session: RecordedSession, completion: (() -> Void)? = nil) {
+        guard session.canConvertToEXR, let videoURL = session.videoURL else {
+            completion?()
+            return
+        }
+        convertingSessionID = session.id
+        conversionProgress = 0
+        let rgbDir = session.directory.appendingPathComponent("rgb")
+        exportService.convertVideoToEXR(
+            videoURL: videoURL,
+            outputDirectory: rgbDir,
+            progress: { p in conversionProgress = p },
+            completion: { result in
+                convertingSessionID = nil
+                conversionProgress = 0
+                if case .failure(let error) = result {
+                    print("[Library] EXR conversion error: \(error)")
+                }
+                refreshSessions()
+                completion?()
+            }
+        )
+    }
+
+    private func convertAllSessions() {
+        var pending = sessions.filter { $0.canConvertToEXR }
+
+        // Each recursive call to convertNext() is initiated from a completion handler
+        // dispatched on the main queue, so there is no stack build-up regardless of
+        // how many sessions are pending.
+        func convertNext() {
+            guard let session = pending.first else { return }
+            pending.removeFirst()
+            convertSession(session) { convertNext() }
+        }
+
+        convertNext()
+    }
+
     // MARK: - Empty State
-    
+
     private var emptyState: some View {
         VStack(spacing: 20) {
             Spacer().frame(height: 80)
-            
+
             Image(systemName: "tray")
                 .font(.system(size: 56))
                 .foregroundStyle(
                     LinearGradient(colors: [.cyan.opacity(0.3), .blue.opacity(0.2)], startPoint: .top, endPoint: .bottom)
                 )
-            
+
             Text("No scans yet")
                 .font(.title3).fontWeight(.semibold)
                 .foregroundStyle(.secondary)
-            
+
             Text("Captured scans will appear here.\nSwitch to the Capture tab to start scanning.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -102,11 +217,14 @@ struct MediaLibraryView: View {
 
 struct SessionCardView: View {
     let session: RecordedSession
+    let isConverting: Bool
+    let conversionProgress: Double
     let onTap: () -> Void
     let onDelete: () -> Void
-    
+    let onConvert: () -> Void
+
     @State private var thumbnail: UIImage?
-    
+
     var body: some View {
         Button(action: onTap) {
             HStack(spacing: 14) {
@@ -118,7 +236,7 @@ struct SessionCardView: View {
                             startPoint: .topLeading, endPoint: .bottomTrailing
                         ))
                         .frame(width: 64, height: 64)
-                    
+
                     if let thumb = thumbnail {
                         Image(uiImage: thumb)
                             .resizable()
@@ -133,27 +251,42 @@ struct SessionCardView: View {
                             )
                     }
                 }
-                
+
                 VStack(alignment: .leading, spacing: 4) {
                     Text(session.name)
                         .font(.system(size: 15, weight: .semibold, design: .rounded))
                         .foregroundStyle(.white)
-                    
+
                     HStack(spacing: 10) {
                         Label("\(session.frameCount)", systemImage: "photo.stack")
                         if session.hasVideo { Label("Video", systemImage: "video.fill") }
                         if session.hasDepth { Label("Depth", systemImage: "cube.fill") }
+
+                        // EXR conversion status badge
+                        if session.hasEXR {
+                            Label("EXR", systemImage: "checkmark.circle.fill")
+                                .foregroundStyle(.green)
+                        } else if session.canConvertToEXR {
+                            Label("EXR", systemImage: "arrow.triangle.2.circlepath")
+                                .foregroundStyle(.orange)
+                        }
                     }
                     .font(.caption2)
                     .foregroundStyle(.secondary)
-                    
-                    Text(session.date, style: .relative)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary.opacity(0.7))
+
+                    if isConverting {
+                        ProgressView(value: conversionProgress)
+                            .tint(.purple)
+                            .frame(maxWidth: 160)
+                    } else {
+                        Text(session.date, style: .relative)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary.opacity(0.7))
+                    }
                 }
-                
+
                 Spacer()
-                
+
                 Image(systemName: "chevron.right")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -163,6 +296,13 @@ struct SessionCardView: View {
         }
         .buttonStyle(.plain)
         .contextMenu {
+            if session.canConvertToEXR {
+                Button {
+                    onConvert()
+                } label: {
+                    Label("Convert to EXR (linear sRGB)", systemImage: "arrow.triangle.2.circlepath")
+                }
+            }
             Button(role: .destructive) {
                 onDelete()
             } label: {
@@ -175,22 +315,31 @@ struct SessionCardView: View {
             } label: {
                 Label("Delete", systemImage: "trash")
             }
+
+            if session.canConvertToEXR {
+                Button {
+                    onConvert()
+                } label: {
+                    Label("Convert", systemImage: "arrow.triangle.2.circlepath")
+                }
+                .tint(.purple)
+            }
         }
         .task {
             thumbnail = await generateThumbnail(for: session)
         }
     }
-    
+
     // MARK: - Thumbnail Generation
-    
+
     private func generateThumbnail(for session: RecordedSession) async -> UIImage? {
         guard let videoURL = session.videoURL else { return nil }
-        
+
         let asset = AVAsset(url: videoURL)
         let generator = AVAssetImageGenerator(asset: asset)
         generator.appliesPreferredTrackTransform = true
         generator.maximumSize = CGSize(width: 128, height: 128)
-        
+
         do {
             let (image, _) = try await generator.image(at: .zero)
             return UIImage(cgImage: image)
@@ -205,13 +354,14 @@ struct SessionCardView: View {
 struct SessionDetailView: View {
     let session: RecordedSession
     let onDelete: () -> Void
-    
+    let onConvert: (() -> Void)?
+
     @State private var activePass: ViewMode = .rgb
     @State private var currentFrameIndex: Int = 0
     @State private var currentImage: UIImage?
     @State private var player: AVPlayer?
     @State private var showDeleteAlert = false
-    
+
     @Environment(\.dismiss) private var dismiss
     
     var body: some View {
@@ -278,12 +428,21 @@ struct SessionDetailView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     HStack(spacing: 12) {
+                        if session.canConvertToEXR, let convert = onConvert {
+                            Button {
+                                convert()
+                            } label: {
+                                Image(systemName: "arrow.triangle.2.circlepath")
+                                    .foregroundStyle(.purple)
+                            }
+                        }
+
                         Button {
                             shareSession()
                         } label: {
                             Image(systemName: "square.and.arrow.up")
                         }
-                        
+
                         Button(role: .destructive) {
                             showDeleteAlert = true
                         } label: {
@@ -373,13 +532,20 @@ struct SessionDetailView: View {
     }
     
     // MARK: - Session Info Bar
-    
+
     private var sessionInfoBar: some View {
         HStack(spacing: 16) {
             Label("\(session.frameCount) frames", systemImage: "photo.stack")
             if session.hasVideo { Label("RGB", systemImage: "video.fill") }
             if session.hasDepth { Label("Depth", systemImage: "cube.fill") }
             if session.hasConfidence { Label("Conf.", systemImage: "checkmark.shield.fill") }
+            if session.hasEXR {
+                Label("EXR ✓", systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+            } else if session.canConvertToEXR {
+                Label("EXR available", systemImage: "arrow.triangle.2.circlepath")
+                    .foregroundStyle(.orange)
+            }
         }
         .font(.caption)
         .foregroundStyle(.secondary)

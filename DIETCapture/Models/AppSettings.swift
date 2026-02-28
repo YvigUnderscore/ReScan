@@ -19,9 +19,6 @@ final class AppSettings: ObservableObject {
     /// Apple Log (ProRes HQ) — only available on iPhone 15 Pro+
     @AppStorage("useAppleLog") var useAppleLog: Bool = false
     
-    /// Capture frames as EXR sequence directly instead of Video
-    @AppStorage("captureEXR") var captureEXR: Bool = false
-    
     /// HDR video capture
     @AppStorage("enableHDR") var enableHDR: Bool = true
     

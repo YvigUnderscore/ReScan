@@ -26,17 +26,11 @@ struct SettingsView: View {
                             Text(res.rawValue).tag(res)
                         }
                     }
-                    
+
                     Picker("Capture FPS", selection: $settings.captureFPS) {
                         ForEach(AppSettings.CaptureFPS.allCases) { fps in
                             Text(fps.label).tag(fps)
                         }
-                    }
-                    
-                    if settings.captureEXR && settings.captureFPS.rawValue > 2 {
-                        Text("⚠️ High FPS with EXR is likely to cause dropped frames or crashes due to hardware bandwidth limits. 1 FPS is recommended.")
-                            .foregroundStyle(.red)
-                            .font(.footnote)
                     }
                 } header: {
                     Text("Video Recording")
@@ -48,19 +42,14 @@ struct SettingsView: View {
                 Section {
                     Toggle("HDR", isOn: $settings.enableHDR)
                         .tint(.cyan)
-                    
+
                     Toggle("Apple Log (ProRes)", isOn: $settings.useAppleLog)
                         .tint(.orange)
-                        .disabled(!supportsAppleLog || settings.captureEXR)
-                        
-                    Toggle("EXR Sequence", isOn: $settings.captureEXR)
-                        .tint(.purple)
+                        .disabled(!supportsAppleLog)
                 } header: {
                     Text("Color & Encoding")
                 } footer: {
-                    if settings.captureEXR {
-                        Text("Captures individual EXR frames instead of a video. EXR files are saved in extended linear sRGB space using half-float precision.\n\n⚠️ EXR sequences consume extreme amounts of storage and memory (~10MB/frame). It is highly recommended to use 1 FPS to avoid hardware bottlenecks (RAM buffers, CPU processing, and storage thermal throttling).")
-                    } else if !supportsAppleLog {
+                    if !supportsAppleLog {
                         Text("⚠️ Apple Log requires iPhone 15 Pro or later. This device will use HDR HEVC instead.\n\nApple Log captures in a logarithmic color space with ProRes 422 HQ compression — ideal for color grading to ACEScg or other color spaces without quality loss.")
                     } else {
                         Text("Apple Log captures in a logarithmic color space with ProRes 422 HQ compression — ideal for converting to ACEScg without quality loss.\n\n⚠️ ProRes files are significantly larger (~6 GB/min at 4K).")
@@ -139,7 +128,7 @@ struct SettingsView: View {
                     HStack {
                         Text("Video Codec")
                         Spacer()
-                        Text(settings.captureEXR ? "None (EXR Sequence)" : (settings.useAppleLog && supportsAppleLog ? "ProRes 422 HQ" : (settings.enableHDR ? "HDR HEVC" : "HEVC")))
+                        Text(settings.useAppleLog && supportsAppleLog ? "ProRes 422 HQ" : (settings.enableHDR ? "HDR HEVC" : "HEVC"))
                             .foregroundStyle(.secondary)
                     }
                     HStack {
@@ -147,12 +136,9 @@ struct SettingsView: View {
                         Spacer()
                     }
                     VStack(alignment: .leading, spacing: 4) {
-                        if settings.captureEXR {
-                            Text("• rgb/ (EXR 16-bit float)").font(.caption).foregroundStyle(.secondary)
-                        } else {
-                            let ext = (settings.useAppleLog && supportsAppleLog) ? "mov" : "mp4"
-                            Text("• rgb.\(ext) (\(settings.useAppleLog && supportsAppleLog ? "ProRes 422 HQ, Apple Log" : (settings.enableHDR ? "HDR HEVC" : "HEVC")))").font(.caption).foregroundStyle(.secondary)
-                        }
+                        let ext = (settings.useAppleLog && supportsAppleLog) ? "mov" : "mp4"
+                        Text("• rgb.\(ext) (\(settings.useAppleLog && supportsAppleLog ? "ProRes 422 HQ, Apple Log" : (settings.enableHDR ? "HDR HEVC" : "HEVC")))").font(.caption).foregroundStyle(.secondary)
+                        Text("• rgb/ (EXR linear sRGB — via Library conversion)").font(.caption).foregroundStyle(.secondary.opacity(0.7))
                         Text("• camera_matrix.csv").font(.caption).foregroundStyle(.secondary)
                         Text("• odometry.csv").font(.caption).foregroundStyle(.secondary)
                         Text("• depth/ (16-bit PNG mm)").font(.caption).foregroundStyle(.secondary)
@@ -161,7 +147,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Export Options")
                 } footer: {
-                    Text("ReScan natively exports to the Stray Scanner format, ready for strayscanner-to-colmap processing.")
+                    Text("ReScan natively exports to the Stray Scanner format, ready for strayscanner-to-colmap processing.\n\nEXR (linear sRGB) conversion can be triggered manually from the Library tab after capture.")
                 }
             }
             .navigationTitle("Settings")
