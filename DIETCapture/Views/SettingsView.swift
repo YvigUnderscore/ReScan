@@ -52,7 +52,7 @@ struct SettingsView: View {
                     if !supportsAppleLog {
                         Text("⚠️ Apple Log requires iPhone 15 Pro or later. This device will use HDR HEVC instead.\n\nApple Log captures in a logarithmic color space with ProRes 422 HQ compression — ideal for color grading to ACEScg or other color spaces without quality loss.")
                     } else {
-                        Text("Apple Log captures in a logarithmic color space with ProRes 422 HQ compression — ideal for converting to ACEScg without quality loss.\n\n⚠️ ProRes files are significantly larger (~6 GB/min at 4K).")
+                        Text("Apple Log captures in a logarithmic color space with ProRes 422 HQ compression — ideal for converting to ACEScg without quality loss.\n\n⚠️ ProRes files are significantly larger (~3.5 GB/min at 2K).")
                     }
                 }
                 
