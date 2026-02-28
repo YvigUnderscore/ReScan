@@ -210,7 +210,7 @@ final class ReMapViewModel {
         selectedDatasetName = datasetName
         
         // Start Live Activity for upload phase
-        LiveActivityService.shared.startActivity(
+        await LiveActivityService.shared.startActivity(
             jobId: session.id,
             datasetName: datasetName,
             step: "Preparing dataset…"
