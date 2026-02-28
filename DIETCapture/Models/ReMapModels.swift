@@ -171,77 +171,132 @@ struct ReMapJobListResponse: Codable {
     let jobs: [ReMapJobListItem]
 }
 
+// MARK: - Colorspace
+
+enum ReMapColorspace: String, CaseIterable, Identifiable, Codable {
+    case linear
+    case srgb
+    case acescg
+    case aces2065_1 = "aces2065-1"
+    case rec709
+    case log
+    case raw
+    
+    var id: String { rawValue }
+    
+    var label: String {
+        switch self {
+        case .linear: return "Linear"
+        case .srgb: return "sRGB"
+        case .acescg: return "ACEScg"
+        case .aces2065_1: return "ACES2065-1"
+        case .rec709: return "Rec.709"
+        case .log: return "Log"
+        case .raw: return "Raw"
+        }
+    }
+    
+    var description: String {
+        switch self {
+        case .linear: return "Linear light sRGB — pipeline internal working space"
+        case .srgb: return "Display sRGB (gamma-corrected, standard monitor output)"
+        case .acescg: return "ACEScg — ACES CG rendering/compositing working space"
+        case .aces2065_1: return "ACES2065-1 — ACES interchange / archive format"
+        case .rec709: return "Rec. 709 — broadcast/HD television standard"
+        case .log: return "Generic logarithmic encoding"
+        case .raw: return "No colorspace interpretation (pass-through)"
+        }
+    }
+}
+
 // MARK: - Processing Settings
 
 struct ReMapProcessingSettings: Codable {
-    var fps: Double = 4.0
-    var strayApproach: String = "full_sfm"
+    var fps: Double = 5.0
     var featureType: String = "superpoint_aachen"
-    var matcherType: String = "superglue"
-    var singleCamera: Bool = true
+    var matcherType: String = "superpoint+lightglue"
+    var maxKeypoints: Int = 8192
     var cameraModel: String = "PINHOLE"
-    var useGPU: Bool = true
+    var mapperType: String = "GLOMAP"
+    var strayApproach: String = "full_sfm"
+    var pairingMode: String = "exhaustive"
+    var numThreads: Int?
+    var strayConfidence: Int = 2
+    var strayDepthSubsample: Int = 2
+    var strayGenPointcloud: Bool = true
+    
+    // Colorspace (top-level in API, but stored here for convenience)
+    var colorspaceEnabled: Bool = false
+    var inputColorspace: ReMapColorspace = .linear
+    var outputColorspace: ReMapColorspace = .linear
     
     enum CodingKeys: String, CodingKey {
         case fps
-        case strayApproach = "stray_approach"
         case featureType = "feature_type"
         case matcherType = "matcher_type"
-        case singleCamera = "single_camera"
+        case maxKeypoints = "max_keypoints"
         case cameraModel = "camera_model"
-        case useGPU = "use_gpu"
+        case mapperType = "mapper_type"
+        case strayApproach = "stray_approach"
+        case pairingMode = "pairing_mode"
+        case numThreads = "num_threads"
+        case strayConfidence = "stray_confidence"
+        case strayDepthSubsample = "stray_depth_subsample"
+        case strayGenPointcloud = "stray_gen_pointcloud"
+        case colorspaceEnabled = "colorspace_enabled"
+        case inputColorspace = "input_colorspace"
+        case outputColorspace = "output_colorspace"
     }
     
-    var dictionary: [String: Any] {
-        [
+    var settingsDictionary: [String: Any] {
+        var dict: [String: Any] = [
             "fps": fps,
-            "stray_approach": strayApproach,
             "feature_type": featureType,
             "matcher_type": matcherType,
-            "single_camera": singleCamera,
+            "max_keypoints": maxKeypoints,
             "camera_model": cameraModel,
-            "use_gpu": useGPU
+            "mapper_type": mapperType,
+            "stray_approach": strayApproach,
+            "pairing_mode": pairingMode,
+            "stray_confidence": strayConfidence,
+            "stray_depth_subsample": strayDepthSubsample,
+            "stray_gen_pointcloud": strayGenPointcloud
         ]
+        if let numThreads = numThreads {
+            dict["num_threads"] = numThreads
+        }
+        return dict
     }
     
     // MARK: - Available Options
     
-    static let strayApproachOptions = ["full_sfm", "triangulation"]
-    
     static let featureTypeOptions = [
         "superpoint_aachen",
         "superpoint_max",
-        "superpoint_inloc",
         "disk",
-        "sosnet",
-        "hardnet",
-        "d2net-ss",
-        "sift",
-        "alike",
         "aliked-n16",
-        "aliked-n32"
+        "sift"
     ]
     
     static let matcherTypeOptions = [
+        "superpoint+lightglue",
         "superglue",
-        "superglue-fast",
-        "NN-superpoint",
-        "NN-ratio",
-        "NN-mutual",
-        "adalam",
-        "lightglue",
-        "lightglue-aliked",
-        "lightglue-disk"
+        "disk+lightglue",
+        "adalam"
     ]
     
     static let cameraModelOptions = [
-        "PINHOLE",
-        "SIMPLE_PINHOLE",
-        "SIMPLE_RADIAL",
-        "RADIAL",
         "OPENCV",
+        "PINHOLE",
+        "SIMPLE_RADIAL",
         "OPENCV_FISHEYE"
     ]
+    
+    static let mapperTypeOptions = ["COLMAP", "GLOMAP"]
+    
+    static let strayApproachOptions = ["full_sfm", "known_poses"]
+    
+    static let pairingModeOptions = ["sequential", "exhaustive"]
     
     // MARK: - Presets
     
@@ -249,7 +304,7 @@ struct ReMapProcessingSettings: Codable {
         var s = ReMapProcessingSettings()
         s.fps = 3.0
         s.featureType = "superpoint_aachen"
-        s.matcherType = "superglue"
+        s.matcherType = "superpoint+lightglue"
         return s
     }()
     
@@ -257,7 +312,7 @@ struct ReMapProcessingSettings: Codable {
         var s = ReMapProcessingSettings()
         s.fps = 2.0
         s.featureType = "superpoint_max"
-        s.matcherType = "lightglue"
+        s.matcherType = "superpoint+lightglue"
         return s
     }()
     
@@ -266,7 +321,7 @@ struct ReMapProcessingSettings: Codable {
         s.fps = 5.0
         s.strayApproach = "full_sfm"
         s.featureType = "superpoint_aachen"
-        s.matcherType = "superglue"
+        s.matcherType = "superpoint+lightglue"
         return s
     }()
     
@@ -276,18 +331,28 @@ struct ReMapProcessingSettings: Codable {
         switch key {
         case "fps":
             return "Frames per second extracted from the video for SfM. Lower = faster processing, higher = more detail."
-        case "stray_approach":
-            return "full_sfm: Complete Structure-from-Motion pipeline. triangulation: Faster, uses existing poses."
         case "feature_type":
             return "Feature extraction method. SuperPoint variants are neural-network based and generally more robust. SIFT is classical."
         case "matcher_type":
-            return "Feature matching method. SuperGlue and LightGlue are learned matchers. NN variants are classical nearest-neighbor."
-        case "single_camera":
-            return "Assume all images come from a single camera (recommended for iPhone captures)."
+            return "Feature matching method. SuperGlue and LightGlue are learned matchers. AdaLAM is classical."
+        case "max_keypoints":
+            return "Maximum number of keypoints detected per image."
         case "camera_model":
             return "Camera distortion model. PINHOLE works well for most iPhone captures."
-        case "use_gpu":
-            return "Use GPU acceleration on the server for feature extraction and matching."
+        case "mapper_type":
+            return "SfM engine. GLOMAP is faster and modern, COLMAP is the classic reference."
+        case "stray_approach":
+            return "full_sfm: Complete Structure-from-Motion pipeline. known_poses: Uses ARKit poses directly."
+        case "pairing_mode":
+            return "sequential: Pairs consecutive frames. exhaustive: Pairs all frames (slower but more robust)."
+        case "num_threads":
+            return "Number of CPU threads for processing. Leave at 0 to use all available cores."
+        case "stray_confidence":
+            return "LiDAR depth confidence threshold (0–2). Higher = stricter filtering."
+        case "stray_depth_subsample":
+            return "Depth frame subsampling factor. Higher = fewer depth frames used."
+        case "stray_gen_pointcloud":
+            return "Generate a 3D point cloud from LiDAR depth data."
         default:
             return ""
         }

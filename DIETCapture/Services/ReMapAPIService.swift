@@ -70,10 +70,16 @@ final class ReMapAPIService: Sendable {
         var request = try makeAuthenticatedRequest(url: url, method: "POST")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         
-        let body: [String: Any] = [
+        var body: [String: Any] = [
             "dataset_id": datasetId,
-            "settings": settings.dictionary
+            "settings": settings.settingsDictionary
         ]
+        
+        if settings.colorspaceEnabled {
+            body["input_colorspace"] = settings.inputColorspace.rawValue
+            body["output_colorspace"] = settings.outputColorspace.rawValue
+        }
+        
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         
         let (data, response) = try await URLSession.shared.data(for: request)

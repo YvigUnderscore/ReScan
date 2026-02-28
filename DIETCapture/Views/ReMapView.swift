@@ -100,6 +100,18 @@ struct ReMapView: View {
             } message: {
                 Text("This dataset has both RGB video and EXR frames. Which source would you like to use for processing?")
             }
+            .alert("Generate EXR Sequence?", isPresented: $viewModel.showEXRGenerationPrompt) {
+                Button("Generate & Upload") {
+                    if let session = viewModel.pendingEXRSession {
+                        Task { await viewModel.generateEXRAndUpload(session: session) }
+                    }
+                }
+                Button("Cancel", role: .cancel) {
+                    viewModel.pendingEXRSession = nil
+                }
+            } message: {
+                Text("No EXR sequence found for this dataset. Would you like to generate it automatically from the RGB video and then upload?")
+            }
             .alert("Error", isPresented: $viewModel.showError) {
                 Button("OK") {}
             } message: {
@@ -241,7 +253,9 @@ struct ReMapView: View {
                 }
             }
             
-            if viewModel.isCreatingZIP {
+            if viewModel.isGeneratingEXR {
+                progressRow(label: "Generating EXR…", progress: viewModel.exrGenerationProgress, color: .purple)
+            } else if viewModel.isCreatingZIP {
                 progressRow(label: "Creating ZIP…", progress: viewModel.zipProgress, color: .orange)
             } else if viewModel.isUploading {
                 progressRow(label: "Uploading…", progress: viewModel.uploadProgress, color: .cyan)
@@ -330,7 +344,7 @@ struct ReMapView: View {
                     .font(.title2)
                     .foregroundStyle(.cyan)
             }
-            .disabled(viewModel.isUploading || viewModel.isCreatingZIP)
+            .disabled(viewModel.isUploading || viewModel.isCreatingZIP || viewModel.isGeneratingEXR)
         }
         .padding(.vertical, 4)
     }
