@@ -114,6 +114,8 @@ extension Color {
         case "yellow": return .yellow
         case "orange": return .orange
         case "red": return .red
+        case "blue": return .blue
+        case "cyan": return .cyan
         default: return .gray
         }
     }
