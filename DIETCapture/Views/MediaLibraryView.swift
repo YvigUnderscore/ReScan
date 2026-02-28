@@ -7,6 +7,7 @@
 import SwiftUI
 import AVKit
 import AVFoundation
+import SceneKit
 
 struct MediaLibraryView: View {
     @State private var sessions: [RecordedSession] = []
@@ -276,6 +277,7 @@ struct SessionCardView: View {
                         Label("\(session.frameCount)", systemImage: "photo.stack")
                         if session.hasVideo { Label("Video", systemImage: "video.fill") }
                         if session.hasDepth { Label("Depth", systemImage: "cube.fill") }
+                        if session.hasMesh { Label("Mesh", systemImage: "move.3d").foregroundStyle(.cyan) }
 
                         // EXR conversion status badge
                         if session.hasEXR {
@@ -439,6 +441,9 @@ struct SessionDetailView: View {
                     ZStack {
                         if activePass == .rgb && session.hasVideo {
                             videoPlayerView
+                        } else if activePass == .mesh, let meshURL = session.meshURL {
+                            MeshViewerView(meshURL: meshURL)
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
                         } else if let image = currentImage {
                             Image(uiImage: image)
                                 .resizable()
@@ -456,8 +461,8 @@ struct SessionDetailView: View {
                     .frame(maxHeight: .infinity)
                     .padding(.horizontal)
                     
-                    // Frame Scrubber (for non-video passes)
-                    if activePass != .rgb && session.frameCount > 0 {
+                    // Frame Scrubber (for non-video, non-mesh passes)
+                    if activePass != .rgb && activePass != .mesh && session.frameCount > 0 {
                         VStack(spacing: 6) {
                             Slider(
                                 value: Binding(
@@ -580,7 +585,7 @@ struct SessionDetailView: View {
         case .rgb: return session.hasVideo
         case .depth: return session.hasDepth
         case .confidence: return session.hasConfidence
-        case .mesh: return false
+        case .mesh: return session.hasMesh
         }
     }
     
@@ -604,6 +609,10 @@ struct SessionDetailView: View {
                 if session.hasVideo { Label("RGB", systemImage: "video.fill") }
                 if session.hasDepth { Label("Depth", systemImage: "cube.fill") }
                 if session.hasConfidence { Label("Conf.", systemImage: "checkmark.shield.fill") }
+                if session.hasMesh {
+                    Label("Mesh", systemImage: "move.3d")
+                        .foregroundStyle(.cyan)
+                }
                 if session.hasEXR {
                     Label("EXR ✓", systemImage: "checkmark.circle.fill")
                         .foregroundStyle(.green)
@@ -668,5 +677,71 @@ struct SessionDetailView: View {
            let rootVC = windowScene.windows.first?.rootViewController {
             rootVC.present(activityVC, animated: true)
         }
+    }
+}
+
+
+// MARK: - 3D Mesh Viewer
+
+/// A SceneKit-based view that loads and displays an OBJ mesh file with full 3D navigation.
+struct MeshViewerView: UIViewRepresentable {
+    let meshURL: URL
+
+    func makeUIView(context: Context) -> SCNView {
+        let scnView = SCNView(frame: .zero)
+        scnView.backgroundColor = UIColor(white: 0.05, alpha: 1.0)
+        scnView.allowsCameraControl = true
+        scnView.autoenablesDefaultLighting = true
+        scnView.antialiasingMode = .multisampling4X
+
+        // Load the OBJ scene
+        if let scene = try? SCNScene(url: meshURL, options: nil) {
+            // Apply a semi-transparent cyan material to every mesh node
+            let material = SCNMaterial()
+            material.diffuse.contents = UIColor.cyan.withAlphaComponent(0.7)
+            material.isDoubleSided = true
+            scene.rootNode.enumerateChildNodes { node, _ in
+                node.geometry?.materials = [material]
+            }
+            scnView.scene = scene
+            scnView.pointOfView = defaultCamera(for: scene)
+        } else {
+            // Show a placeholder text node when the mesh cannot be loaded
+            print("[MeshViewerView] Failed to load mesh from \(meshURL.lastPathComponent)")
+            let scene = SCNScene()
+            let textGeometry = SCNText(string: "Mesh unavailable", extrusionDepth: 0.1)
+            textGeometry.font = UIFont.systemFont(ofSize: 0.3)
+            textGeometry.firstMaterial?.diffuse.contents = UIColor.gray
+            let textNode = SCNNode(geometry: textGeometry)
+            textNode.position = SCNVector3(-0.75, 0, 0)
+            scene.rootNode.addChildNode(textNode)
+            scnView.scene = scene
+        }
+
+        return scnView
+    }
+
+    func updateUIView(_ uiView: SCNView, context: Context) {}
+
+    /// Positions the camera so the entire mesh is visible.
+    private func defaultCamera(for scene: SCNScene) -> SCNNode {
+        let cameraNode = SCNNode()
+        cameraNode.camera = SCNCamera()
+
+        // Compute bounding box to position camera appropriately
+        let (minVec, maxVec) = scene.rootNode.boundingBox
+        let center = SCNVector3(
+            (minVec.x + maxVec.x) / 2,
+            (minVec.y + maxVec.y) / 2,
+            (minVec.z + maxVec.z) / 2
+        )
+        let size = max(
+            maxVec.x - minVec.x,
+            maxVec.y - minVec.y,
+            maxVec.z - minVec.z
+        )
+        cameraNode.position = SCNVector3(center.x, center.y + size * 0.3, center.z + size * 1.5)
+        cameraNode.look(at: center)
+        return cameraNode
     }
 }

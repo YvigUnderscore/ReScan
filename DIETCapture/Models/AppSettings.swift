@@ -26,6 +26,16 @@ final class AppSettings: ObservableObject {
     
     @Published var hasExternalStorage: Bool = false
     
+    // MARK: - Mesh Start Mode
+
+    enum MeshStartMode: String, CaseIterable, Identifiable {
+        case waitForPolygons = "Wait for First Polygons"
+        case bruteForce = "BruteForce (Instant)"
+        var id: String { rawValue }
+    }
+
+    @AppStorage("meshStartMode") var meshStartMode: MeshStartMode = .waitForPolygons
+
     // MARK: - LiDAR Defaults
     
     @AppStorage("defaultMaxDistance") var defaultMaxDistance: Double = 5.0
