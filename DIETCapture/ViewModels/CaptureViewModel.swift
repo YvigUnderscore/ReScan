@@ -26,6 +26,9 @@ final class CaptureViewModel {
     
     private let exportService = ExportService()
     
+    /// Adaptive mesh refinement service — created when refinement is enabled.
+    private var meshRefinement: AdaptiveMeshRefinement?
+    
     // MARK: - State
     
     var isRecording: Bool { session.state == .recording }
@@ -134,6 +137,13 @@ final class CaptureViewModel {
             
             _ = try session.createSessionDirectory()
             
+            // Initialize adaptive mesh refinement if enabled
+            if appSettings.adaptiveMeshRefinement {
+                meshRefinement = AdaptiveMeshRefinement(detailLevel: appSettings.meshDetailLevel)
+            } else {
+                meshRefinement = nil
+            }
+            
             if appSettings.meshStartMode == .bruteForce {
                 beginCapture()
             } else {
@@ -199,8 +209,20 @@ final class CaptureViewModel {
         // Export mesh if available
         let meshAnchors = lidar.meshAnchors
         if !meshAnchors.isEmpty, let meshURL = session.meshURL {
-            exportService.exportMeshAsOBJ(anchors: meshAnchors, to: meshURL)
+            if let refinement = meshRefinement {
+                // Export adaptively refined mesh
+                let (vertices, faces) = refinement.buildRefinedMesh(from: meshAnchors)
+                exportService.exportRefinedMeshAsOBJ(vertices: vertices, faces: faces, to: meshURL)
+                let stats = refinement.statistics
+                print("[CaptureVM] Refined mesh: \(stats.totalVertices) verts, \(stats.totalFaces) faces, \(stats.refinedRegions) refined regions")
+            } else {
+                exportService.exportMeshAsOBJ(anchors: meshAnchors, to: meshURL)
+            }
         }
+        
+        // Clean up refinement service
+        meshRefinement?.reset()
+        meshRefinement = nil
         
         // Finish video
         exportService.finishVideoRecording { [weak self] in
@@ -269,6 +291,14 @@ final class CaptureViewModel {
         
         // Append odometry
         exportService.appendOdometry(timestamp: timestamp, frame: frameIndex, pose: pose)
+        
+        // Record mesh observations for adaptive refinement
+        if let refinement = meshRefinement {
+            let anchors = frame.anchors.compactMap { $0 as? ARMeshAnchor }
+            if !anchors.isEmpty {
+                refinement.recordObservations(anchors: anchors, timestamp: timestamp)
+            }
+        }
         
         // Tracking state
         let trackingState: String = {

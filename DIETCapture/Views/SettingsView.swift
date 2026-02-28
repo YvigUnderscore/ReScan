@@ -90,10 +90,21 @@ struct SettingsView: View {
                             Text(mode.rawValue).tag(mode)
                         }
                     }
+                    
+                    Toggle("Adaptive Mesh Refinement", isOn: $settings.adaptiveMeshRefinement)
+                        .tint(.cyan)
+                    
+                    if settings.adaptiveMeshRefinement {
+                        Picker("Mesh Detail Level", selection: $settings.meshDetailLevel) {
+                            ForEach(MeshDetailLevel.allCases) { level in
+                                Text(level.label).tag(level)
+                            }
+                        }
+                    }
                 } header: {
                     Text("LiDAR Defaults")
                 } footer: {
-                    Text("Confidence controls the minimum quality threshold for depth measurements.\n\n• Low: Keeps all depth measurements, including uncertain ones. Maximum coverage but may include noise.\n• Medium (Recommended): Good balance between coverage and accuracy. Filters out the least reliable points.\n• High: Only keeps the most reliable depth measurements. Best accuracy but may have gaps in coverage.\n\nSmooth Depth applies temporal smoothing across frames to reduce noise and flickering in the depth map.\n\nMesh Start controls when the capture begins after pressing Rec:\n• Wait for First Polygons (default): capture starts only once the ARKit mesh has produced its first geometry, ensuring LiDAR/RGB/odometry are aligned with an active mesh.\n• BruteForce (Instant): capture starts immediately when Rec is pressed.")
+                    Text("Confidence controls the minimum quality threshold for depth measurements.\n\n• Low: Keeps all depth measurements, including uncertain ones. Maximum coverage but may include noise.\n• Medium (Recommended): Good balance between coverage and accuracy. Filters out the least reliable points.\n• High: Only keeps the most reliable depth measurements. Best accuracy but may have gaps in coverage.\n\nSmooth Depth applies temporal smoothing across frames to reduce noise and flickering in the depth map.\n\nMesh Start controls when the capture begins after pressing Rec:\n• Wait for First Polygons (default): capture starts only once the ARKit mesh has produced its first geometry, ensuring LiDAR/RGB/odometry are aligned with an active mesh.\n• BruteForce (Instant): capture starts immediately when Rec is pressed.\n\nAdaptive Mesh Refinement progressively enriches the mesh during capture. Regions scanned multiple times receive higher triangle density via subdivision. Detail Level controls the voxel resolution and maximum subdivision depth.")
                 }
                 
                 // MARK: - External Storage

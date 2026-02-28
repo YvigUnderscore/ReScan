@@ -98,6 +98,14 @@ final class LiDARViewModel {
         arService.meshAnchors
     }
     
+    /// Current mesh statistics from adaptive refinement (if active).
+    var meshStatistics: MeshStatistics? {
+        meshRefinement?.statistics
+    }
+    
+    /// Adaptive mesh refinement service — set by CaptureViewModel when refinement is enabled.
+    var meshRefinement: AdaptiveMeshRefinement?
+    
     // MARK: - Pass Viewer Buffer
     
     func generateViewBuffer() -> CVPixelBuffer? {
