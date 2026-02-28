@@ -50,6 +50,11 @@ final class AdaptiveMeshRefinement {
     /// Maximum number of recursive subdivision passes.
     private let maxSubdivisionLevel: Int
 
+    /// Target maximum edge length in meters. Triangles with edges longer than this
+    /// are candidates for subdivision regardless of observation density.
+    /// Higher detail levels produce smaller target edge lengths, resulting in smaller polygons.
+    private let targetEdgeLength: Float
+
     // MARK: - Spatial Grid
 
     /// Voxel grid storing observation counts per cell.
@@ -70,14 +75,17 @@ final class AdaptiveMeshRefinement {
             cellSize = 0.10
             subdivisionThreshold = 6
             maxSubdivisionLevel = 1
+            targetEdgeLength = 0.20
         case .medium:
             cellSize = 0.05
             subdivisionThreshold = 4
             maxSubdivisionLevel = 2
+            targetEdgeLength = 0.10
         case .high:
             cellSize = 0.03
             subdivisionThreshold = 3
             maxSubdivisionLevel = 3
+            targetEdgeLength = 0.05
         }
     }
 
@@ -220,7 +228,8 @@ final class AdaptiveMeshRefinement {
     }
 
     /// Determines how many times to subdivide a triangle based on the average observation
-    /// count of its vertices' voxel cells.
+    /// count of its vertices' voxel cells and the triangle's edge lengths.
+    /// Larger polygons are more aggressively subdivided to meet the target edge length.
     private func subdivisionLevel(
         for v0: SIMD3<Float>,
         _ v1: SIMD3<Float>,
@@ -232,14 +241,32 @@ final class AdaptiveMeshRefinement {
         let obs2 = grid[voxelKey(for: v2)]?.observationCount ?? 0
         let avgObs = (obs0 + obs1 + obs2) / 3
 
-        if avgObs < subdivisionThreshold {
-            return 0
+        // Compute the longest edge of the triangle
+        let edge01 = simd_distance(v0, v1)
+        let edge12 = simd_distance(v1, v2)
+        let edge02 = simd_distance(v0, v2)
+        let maxEdge = max(edge01, max(edge12, edge02))
+
+        // Determine subdivision level from polygon size: how many halvings are needed
+        // to bring the longest edge below the target edge length.
+        let sizeLevel: Int
+        if maxEdge > targetEdgeLength {
+            sizeLevel = min(maxSubdivisionLevel, Int(ceil(log2(maxEdge / targetEdgeLength))))
+        } else {
+            sizeLevel = 0
         }
 
-        // Scale subdivision level with observation density, capped at max.
-        // Integer division produces stepped levels: threshold..2*threshold → 1, 2*threshold..3*threshold → 2, etc.
-        let level = min(maxSubdivisionLevel, 1 + (avgObs - subdivisionThreshold) / subdivisionThreshold)
-        return max(0, level)
+        // Determine subdivision level from observation density
+        let obsLevel: Int
+        if avgObs >= subdivisionThreshold {
+            obsLevel = min(maxSubdivisionLevel, 1 + (avgObs - subdivisionThreshold) / subdivisionThreshold)
+        } else {
+            obsLevel = 0
+        }
+
+        // Use the higher of the two levels: a triangle is subdivided if it is either
+        // large enough or observed enough (or both).
+        return max(0, max(obsLevel, sizeLevel))
     }
 
     /// Performs midpoint subdivision of a triangle, recursively up to `level` times.

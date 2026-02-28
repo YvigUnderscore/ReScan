@@ -89,7 +89,7 @@ final class AppSettings: ObservableObject {
     }
     
     enum VideoResolution: String, CaseIterable, Identifiable {
-        case high = "3840 × 2160 (4K)"
+        case high = "1920 × 2160 (2K)"
         case medium = "1920 × 1080 (1080p)"
         var id: String { rawValue }
     }

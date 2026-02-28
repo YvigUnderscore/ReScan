@@ -8,6 +8,9 @@ import SwiftUI
 
 struct ReMapProcessingSettingsView: View {
     @Binding var settings: ReMapProcessingSettings
+    /// Optional source duration in seconds (video length or EXR sequence duration).
+    /// When provided, the Performance section displays the estimated extracted frame count.
+    var sourceDuration: TimeInterval?
     @Environment(\.dismiss) private var dismiss
     @State private var expandedSection: SettingsSection? = .pipeline
     @State private var showSavedFeedback = false
@@ -348,6 +351,17 @@ struct ReMapProcessingSettingsView: View {
                     }
                     Slider(value: $settings.fps, in: 1...30, step: 0.5)
                         .tint(.orange)
+                    if let duration = sourceDuration, duration > 0 {
+                        let estimatedFrames = Int(ceil(duration * settings.fps))
+                        HStack(spacing: 4) {
+                            Image(systemName: "photo.stack")
+                                .font(.caption2)
+                                .foregroundStyle(.orange.opacity(0.8))
+                            Text("≈ \(estimatedFrames) frames extracted")
+                                .font(.caption2).fontWeight(.medium)
+                                .foregroundStyle(.orange.opacity(0.8))
+                        }
+                    }
                     Text(ReMapProcessingSettings.tooltip(for: "fps"))
                         .font(.caption2)
                         .foregroundStyle(.secondary.opacity(0.6))

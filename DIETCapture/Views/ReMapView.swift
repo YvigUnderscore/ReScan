@@ -114,7 +114,7 @@ struct ReMapView: View {
                 ReMapServerSettingsView(viewModel: viewModel)
             }
             .sheet(isPresented: $showProcessingSettings) {
-                ReMapProcessingSettingsView(settings: $viewModel.processingSettings)
+                ReMapProcessingSettingsView(settings: $viewModel.processingSettings, sourceDuration: selectedSession?.duration)
             }
             .sheet(isPresented: $showLogs) {
                 ReMapLogsView(viewModel: viewModel, jobId: logsJobId ?? "")
