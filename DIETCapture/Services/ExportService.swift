@@ -522,25 +522,38 @@ final class ExportService {
                 vertexOffset += Int32(vertexCount)
             }
             
-            // Write OBJ file
-            var obj = "# ReScan Mesh Export\n"
-            obj += "# Vertices: \(allVertices.count), Faces: \(allFaces.count)\n\n"
-            
-            for v in allVertices {
-                obj += "v \(v.x) \(v.y) \(v.z)\n"
-            }
-            
-            obj += "\n"
-            
-            for face in allFaces {
-                // OBJ uses 1-based indexing
-                let indices = face.map { String($0 + 1) }.joined(separator: " ")
-                obj += "f \(indices)\n"
-            }
-            
-            try? obj.write(to: url, atomically: true, encoding: .utf8)
-            print("[ExportService] Mesh exported: \(allVertices.count) vertices, \(allFaces.count) faces")
+            Self.writeOBJ(vertices: allVertices, faces: allFaces, to: url)
         }
+    }
+    
+    /// Exports a refined mesh produced by `AdaptiveMeshRefinement` as an OBJ file.
+    func exportRefinedMeshAsOBJ(vertices: [SIMD3<Float>], faces: [[Int32]], to url: URL) {
+        guard !vertices.isEmpty else { return }
+        
+        writeQueue.async {
+            Self.writeOBJ(vertices: vertices, faces: faces, to: url)
+        }
+    }
+    
+    /// Writes vertex and face data to an OBJ file.
+    private static func writeOBJ(vertices: [SIMD3<Float>], faces: [[Int32]], to url: URL) {
+        var obj = "# ReScan Mesh Export\n"
+        obj += "# Vertices: \(vertices.count), Faces: \(faces.count)\n\n"
+        
+        for v in vertices {
+            obj += "v \(v.x) \(v.y) \(v.z)\n"
+        }
+        
+        obj += "\n"
+        
+        for face in faces {
+            // OBJ uses 1-based indexing
+            let indices = face.map { String($0 + 1) }.joined(separator: " ")
+            obj += "f \(indices)\n"
+        }
+        
+        try? obj.write(to: url, atomically: true, encoding: .utf8)
+        print("[ExportService] Mesh exported: \(vertices.count) vertices, \(faces.count) faces")
     }
 }
 // MARK: - Errors
