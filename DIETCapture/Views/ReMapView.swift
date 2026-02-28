@@ -16,54 +16,54 @@ struct ReMapView: View {
     @State private var logsJobId: String?
     @State private var showProcessingSettings = false
     @State private var showClearConfirmation = false
+    @State private var selectedTab: ReMapTab = .newJob
+    
+    private enum ReMapTab: String, CaseIterable {
+        case newJob = "New Job"
+        case active = "Active"
+        case history = "History"
+        
+        var icon: String {
+            switch self {
+            case .newJob: return "plus.circle.fill"
+            case .active: return "bolt.fill"
+            case .history: return "clock.fill"
+            }
+        }
+    }
     
     var body: some View {
         NavigationStack {
             ZStack {
                 Color.black.ignoresSafeArea()
                 
-                ScrollView {
-                    VStack(spacing: 20) {
-                        // Server Status
-                        serverStatusCard
+                VStack(spacing: 0) {
+                    if viewModel.isConfigured {
+                        // Server status bar (compact)
+                        serverStatusBar
                         
-                        if viewModel.isConfigured {
-                            // Processing Datasets
-                            if !viewModel.processingJobs.isEmpty {
-                                processingDatasetsSection
-                                    .transition(.asymmetric(
-                                        insertion: .move(edge: .top).combined(with: .opacity),
-                                        removal: .opacity
-                                    ))
+                        // Tab selector
+                        tabSelector
+                        
+                        // Tab content
+                        ScrollView {
+                            VStack(spacing: 16) {
+                                switch selectedTab {
+                                case .newJob:
+                                    newJobContent
+                                case .active:
+                                    activeJobsContent
+                                case .history:
+                                    historyContent
+                                }
                             }
-                            
-                            // ReMapped Datasets (completed)
-                            if !viewModel.completedJobs.isEmpty {
-                                remappedDatasetsSection
-                                    .transition(.asymmetric(
-                                        insertion: .move(edge: .top).combined(with: .opacity),
-                                        removal: .opacity
-                                    ))
-                            }
-                            
-                            // Dataset Selection & Workflow
-                            datasetSelectionSection
-                            
-                            // Failed/Cancelled jobs
-                            if !viewModel.failedJobs.isEmpty {
-                                failedJobsSection
-                                    .transition(.opacity)
-                            }
-                        } else {
-                            configurePrompt
+                            .padding(.horizontal, 16)
+                            .padding(.top, 12)
+                            .padding(.bottom, 32)
                         }
+                    } else {
+                        configurePrompt
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 20)
-                    .animation(.spring(response: 0.5, dampingFraction: 0.8), value: viewModel.processingJobs.count)
-                    .animation(.spring(response: 0.5, dampingFraction: 0.8), value: viewModel.completedJobs.count)
-                    .animation(.spring(response: 0.5, dampingFraction: 0.8), value: selectedSession?.id)
-                    .animation(.spring(response: 0.5, dampingFraction: 0.8), value: selectedSource)
                 }
             }
             .navigationTitle("ReMap")
@@ -167,400 +167,248 @@ struct ReMapView: View {
                 }
                 viewModel.startAutoRefresh()
             }
+            // Auto-select Active tab if there are processing jobs
+            if !viewModel.processingJobs.isEmpty {
+                selectedTab = .active
+            }
         }
         .onDisappear {
             viewModel.stopAutoRefresh()
         }
+        .animation(.spring(response: 0.4, dampingFraction: 0.85), value: selectedTab)
+        .animation(.spring(response: 0.5, dampingFraction: 0.8), value: selectedSession?.id)
+        .animation(.spring(response: 0.5, dampingFraction: 0.8), value: selectedSource)
     }
     
-    // MARK: - Server Status Card
+    // MARK: - Server Status Bar (Compact)
     
-    private var serverStatusCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Image(systemName: "server.rack")
-                    .font(.title3)
-                    .foregroundStyle(.cyan)
+    private var serverStatusBar: some View {
+        HStack(spacing: 10) {
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(viewModel.isServerOnline ? .green : .red)
+                    .frame(width: 7, height: 7)
                 
-                Text("Server")
-                    .font(.headline)
-                    .foregroundStyle(.white)
-                
-                Spacer()
-                
-                if viewModel.isCheckingServer {
-                    ProgressView()
-                        .tint(.cyan)
-                        .scaleEffect(0.8)
-                } else {
-                    HStack(spacing: 6) {
-                        Circle()
-                            .fill(viewModel.isServerOnline ? .green : .red)
-                            .frame(width: 8, height: 8)
-                        Text(viewModel.isServerOnline ? "Online" : "Offline")
-                            .font(.caption)
-                            .foregroundStyle(viewModel.isServerOnline ? .green : .red)
-                    }
-                }
+                Text(viewModel.isServerOnline ? "Connected" : "Offline")
+                    .font(.caption2).fontWeight(.medium)
+                    .foregroundStyle(viewModel.isServerOnline ? .green : .red)
             }
+            
+            if viewModel.isCheckingServer {
+                ProgressView()
+                    .tint(.cyan)
+                    .scaleEffect(0.6)
+            }
+            
+            Spacer()
             
             if viewModel.isConfigured {
                 Text(viewModel.serverURL)
-                    .font(.caption)
+                    .font(.system(size: 10, design: .monospaced))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
-                
-                if let version = viewModel.serverVersion {
-                    Text("API \(version)")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary.opacity(0.7))
-                }
+            }
+            
+            if let version = viewModel.serverVersion {
+                Text("v\(version)")
+                    .font(.system(size: 10, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.cyan.opacity(0.7))
             }
             
             Button {
                 Task { await viewModel.checkServer() }
             } label: {
-                HStack {
-                    Image(systemName: "arrow.clockwise")
-                    Text("Check Connection")
-                }
-                .font(.caption)
-                .foregroundStyle(.cyan)
+                Image(systemName: "arrow.clockwise")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.cyan)
             }
         }
-        .padding(16)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .background(Color(white: 0.06))
+    }
+    
+    // MARK: - Tab Selector
+    
+    private var tabSelector: some View {
+        HStack(spacing: 0) {
+            ForEach(ReMapTab.allCases, id: \.rawValue) { tab in
+                Button {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                        selectedTab = tab
+                    }
+                } label: {
+                    VStack(spacing: 4) {
+                        HStack(spacing: 5) {
+                            Image(systemName: tab.icon)
+                                .font(.system(size: 12))
+                            Text(tab.rawValue)
+                                .font(.caption).fontWeight(.semibold)
+                            
+                            // Badge for active jobs
+                            if tab == .active && !viewModel.processingJobs.isEmpty {
+                                Text("\(viewModel.processingJobs.count)")
+                                    .font(.system(size: 9, weight: .bold))
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 5)
+                                    .padding(.vertical, 1)
+                                    .background(.blue, in: Capsule())
+                            }
+                        }
+                        .foregroundStyle(selectedTab == tab ? .cyan : .secondary)
+                        
+                        Rectangle()
+                            .fill(selectedTab == tab ? .cyan : .clear)
+                            .frame(height: 2)
+                            .clipShape(Capsule())
+                    }
+                    .frame(maxWidth: .infinity)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 4)
+        .padding(.bottom, 2)
+        .background(Color(white: 0.06))
     }
     
     // MARK: - Configure Prompt
     
     private var configurePrompt: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 20) {
+            Spacer()
+            
             Image(systemName: "link.badge.plus")
-                .font(.system(size: 48))
+                .font(.system(size: 56))
                 .foregroundStyle(
-                    LinearGradient(colors: [.cyan.opacity(0.4), .blue.opacity(0.3)], startPoint: .top, endPoint: .bottom)
+                    LinearGradient(colors: [.cyan, .blue.opacity(0.6)], startPoint: .topLeading, endPoint: .bottomTrailing)
                 )
             
-            Text("Connect to ReMap Server")
-                .font(.title3).fontWeight(.semibold)
-                .foregroundStyle(.secondary)
+            Text("Connect to ReMap")
+                .font(.title2).fontWeight(.bold)
+                .foregroundStyle(.white)
             
-            Text("Configure your ReMap server URL and API key to start processing datasets remotely.")
-                .font(.caption)
+            Text("Configure your ReMap server URL and API key\nto start processing datasets remotely.")
+                .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
             
             Button {
                 showSettings = true
             } label: {
-                Text("Configure Server")
-                    .font(.headline)
-                    .foregroundStyle(.black)
-                    .padding(.horizontal, 28)
-                    .padding(.vertical, 12)
-                    .background(.cyan, in: Capsule())
-            }
-        }
-        .padding(.top, 40)
-    }
-    
-    // MARK: - Processing Datasets Section
-    
-    private var processingDatasetsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Group {
-                    if #available(iOS 18.0, *) {
-                        Image(systemName: "gearshape.2.fill")
-                            .foregroundStyle(.blue)
-                            .symbolEffect(.rotate, isActive: true)
-                    } else {
-                        Image(systemName: "gearshape.2.fill")
-                            .foregroundStyle(.blue)
-                    }
-                }
-                
-                Text("Processing Datasets")
-                    .font(.headline)
-                    .foregroundStyle(.white)
-                
-                Spacer()
-                
-                Text("\(viewModel.processingJobs.count)")
-                    .font(.caption).fontWeight(.semibold)
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 2)
-                    .background(.blue.opacity(0.6), in: Capsule())
-            }
-            
-            ForEach(viewModel.processingJobs) { job in
-                processingJobRow(job: job)
-                    .transition(.asymmetric(
-                        insertion: .scale(scale: 0.8).combined(with: .opacity),
-                        removal: .move(edge: .trailing).combined(with: .opacity)
-                    ))
-            }
-        }
-        .padding(16)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .strokeBorder(.blue.opacity(0.3), lineWidth: 1)
-        )
-    }
-    
-    private func processingJobRow(job: ReMapJobListItem) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 6) {
-                        Image(systemName: job.parsedStatus.icon)
-                            .foregroundStyle(Color.fromString(job.parsedStatus.color))
-                        if let datasetId = job.datasetId {
-                            Text(datasetId.prefix(12) + "…")
-                                .font(.system(size: 12, weight: .medium, design: .monospaced))
-                                .foregroundStyle(.white)
-                        } else {
-                            Text(job.jobId.prefix(12) + "…")
-                                .font(.system(size: 12, weight: .medium, design: .monospaced))
-                                .foregroundStyle(.white)
-                        }
-                    }
-                    
-                    HStack(spacing: 6) {
-                        Text(job.parsedStatus.label)
-                            .foregroundStyle(Color.fromString(job.parsedStatus.color))
-                        if let step = job.currentStep {
-                            Text("· \(step)")
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    .font(.caption2)
-                }
-                
-                Spacer()
-                
                 HStack(spacing: 8) {
-                    Button {
-                        logsJobId = job.jobId
-                        showLogs = true
-                    } label: {
-                        Image(systemName: "doc.text")
-                            .font(.caption)
-                            .foregroundStyle(.cyan)
-                    }
-                    
-                    Button {
-                        viewModel.startPolling(jobId: job.jobId)
-                    } label: {
-                        Image(systemName: "eye.fill")
-                            .font(.caption)
-                            .foregroundStyle(.blue)
-                    }
-                    
-                    Button {
-                        Task { await viewModel.cancelJob(jobId: job.jobId) }
-                    } label: {
-                        Image(systemName: "xmark.circle")
-                            .font(.caption)
-                            .foregroundStyle(.red.opacity(0.7))
-                    }
+                    Image(systemName: "server.rack")
+                    Text("Configure Server")
                 }
-            }
-            
-            ProgressView(value: Double(job.progress) / 100.0)
-                .tint(.blue)
-                .animation(.easeInOut(duration: 0.3), value: job.progress)
-            
-            Text("\(job.progress)%")
-                .font(.system(.caption2, design: .monospaced))
-                .foregroundStyle(.secondary)
-        }
-        .padding(12)
-        .background(Color(white: 0.08), in: RoundedRectangle(cornerRadius: 12))
-    }
-    
-    // MARK: - ReMapped Datasets Section (Completed)
-    
-    private var remappedDatasetsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
-                
-                Text("ReMapped Datasets")
-                    .font(.headline)
-                    .foregroundStyle(.white)
-                
-                Spacer()
-                
-                Text("\(viewModel.completedJobs.count)")
-                    .font(.caption).fontWeight(.semibold)
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 2)
-                    .background(.green.opacity(0.6), in: Capsule())
-            }
-            
-            ForEach(viewModel.completedJobs) { job in
-                completedJobRow(job: job)
-                    .transition(.asymmetric(
-                        insertion: .scale(scale: 0.8).combined(with: .opacity),
-                        removal: .opacity
-                    ))
-            }
-        }
-        .padding(16)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .strokeBorder(.green.opacity(0.3), lineWidth: 1)
-        )
-    }
-    
-    private func completedJobRow(job: ReMapJobListItem) -> some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 6) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(.green)
-                    if let datasetId = job.datasetId {
-                        Text(datasetId.prefix(12) + "…")
-                            .font(.system(size: 12, weight: .medium, design: .monospaced))
-                            .foregroundStyle(.white)
-                    } else {
-                        Text(job.jobId.prefix(12) + "…")
-                            .font(.system(size: 12, weight: .medium, design: .monospaced))
-                            .foregroundStyle(.white)
-                    }
-                }
-                
-                if let createdAt = job.createdAt {
-                    Text(createdAt)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
+                .font(.headline)
+                .foregroundStyle(.black)
+                .padding(.horizontal, 32)
+                .padding(.vertical, 14)
+                .background(
+                    LinearGradient(colors: [.cyan, .cyan.opacity(0.8)], startPoint: .leading, endPoint: .trailing),
+                    in: Capsule()
+                )
             }
             
             Spacer()
-            
-            HStack(spacing: 8) {
-                Button {
-                    logsJobId = job.jobId
-                    showLogs = true
-                } label: {
-                    Image(systemName: "doc.text")
-                        .font(.caption)
-                        .foregroundStyle(.cyan)
-                }
-                
-                Button {
-                    Task { await viewModel.downloadResult(jobId: job.jobId) }
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "arrow.down.circle.fill")
-                        Text("Download")
-                    }
-                    .font(.caption)
-                    .foregroundStyle(.green)
-                }
-                .disabled(viewModel.isDownloading)
-            }
         }
-        .padding(12)
-        .background(Color(white: 0.08), in: RoundedRectangle(cornerRadius: 12))
+        .padding(.horizontal, 24)
     }
     
-    // MARK: - Dataset Selection & Workflow
+    // MARK: - New Job Tab
     
-    private var datasetSelectionSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Image(systemName: "square.and.arrow.up.fill")
-                    .foregroundStyle(.cyan)
-                Text("Select Dataset")
-                    .font(.headline)
-                    .foregroundStyle(.white)
-                
-                Spacer()
-                
-                if selectedSession != nil {
-                    Button {
-                        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                            selectedSession = nil
-                            selectedSource = nil
-                        }
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "xmark.circle.fill")
-                            Text("Cancel")
-                        }
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    }
-                }
-            }
-            
+    private var newJobContent: some View {
+        VStack(spacing: 16) {
             // Upload progress states
             if viewModel.isGeneratingEXR {
-                progressRow(label: "Generating EXR…", progress: viewModel.exrGenerationProgress, color: .purple)
-                    .transition(.scale(scale: 0.9).combined(with: .opacity))
+                uploadProgressCard(
+                    icon: "wand.and.stars",
+                    label: "Generating EXR Sequence",
+                    progress: viewModel.exrGenerationProgress,
+                    color: .purple
+                )
             } else if viewModel.isCreatingZIP {
-                progressRow(label: "Creating ZIP…", progress: viewModel.zipProgress, color: .orange)
-                    .transition(.scale(scale: 0.9).combined(with: .opacity))
+                uploadProgressCard(
+                    icon: "doc.zipper",
+                    label: "Creating ZIP Archive",
+                    progress: viewModel.zipProgress,
+                    color: .orange
+                )
             } else if viewModel.isUploading {
-                progressRow(label: "Uploading…", progress: viewModel.uploadProgress, color: .cyan)
-                    .transition(.scale(scale: 0.9).combined(with: .opacity))
+                uploadProgressCard(
+                    icon: "arrow.up.circle.fill",
+                    label: "Uploading to Server",
+                    progress: viewModel.uploadProgress,
+                    color: .cyan
+                )
             } else if viewModel.isStartingProcess {
-                HStack {
+                HStack(spacing: 10) {
                     ProgressView().tint(.cyan).scaleEffect(0.8)
                     Text("Starting processing…")
-                        .font(.caption)
+                        .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
-                .transition(.opacity)
+                .frame(maxWidth: .infinity)
+                .padding(16)
+                .background(Color(white: 0.07), in: RoundedRectangle(cornerRadius: 14))
             } else if let session = selectedSession {
-                // Dataset workflow steps
                 datasetWorkflow(session: session)
                     .transition(.asymmetric(
                         insertion: .move(edge: .bottom).combined(with: .opacity),
                         removal: .opacity
                     ))
             } else {
-                // Dataset list
-                if sessions.isEmpty {
-                    VStack(spacing: 10) {
-                        Image(systemName: "camera.fill")
-                            .font(.system(size: 32))
-                            .foregroundStyle(.secondary.opacity(0.4))
-                        Text("No datasets available. Capture a scan first.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
-                } else {
-                    ForEach(sessions) { session in
-                        datasetRow(session: session)
-                            .transition(.scale(scale: 0.95).combined(with: .opacity))
-                    }
-                }
+                // Dataset selection
+                datasetSelectionGrid
+            }
+        }
+    }
+    
+    // MARK: - Dataset Selection Grid
+    
+    private var datasetSelectionGrid: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "square.and.arrow.up.fill")
+                    .foregroundStyle(.cyan)
+                Text("Select a Dataset")
+                    .font(.headline)
+                    .foregroundStyle(.white)
+                Spacer()
+                Text("\(sessions.count)")
+                    .font(.caption2).fontWeight(.bold)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(Color(white: 0.15), in: Capsule())
             }
             
-            if viewModel.isDownloading {
-                HStack {
-                    ProgressView().tint(.green).scaleEffect(0.8)
-                    Text("Downloading result…")
-                        .font(.caption)
+            if sessions.isEmpty {
+                VStack(spacing: 14) {
+                    Image(systemName: "camera.viewfinder")
+                        .font(.system(size: 40))
+                        .foregroundStyle(
+                            LinearGradient(colors: [.secondary.opacity(0.5), .secondary.opacity(0.2)], startPoint: .top, endPoint: .bottom)
+                        )
+                    Text("No datasets yet")
+                        .font(.subheadline).fontWeight(.medium)
                         .foregroundStyle(.secondary)
+                    Text("Capture a scan to start processing.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary.opacity(0.7))
                 }
-                .transition(.opacity)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 40)
+            } else {
+                ForEach(sessions) { session in
+                    datasetRow(session: session)
+                }
             }
         }
         .padding(16)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+        .background(Color(white: 0.07), in: RoundedRectangle(cornerRadius: 14))
     }
     
     // MARK: - Dataset Row
@@ -572,15 +420,28 @@ struct ReMapView: View {
                 selectedSource = nil
             }
         } label: {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 12) {
+                // Icon
+                Image(systemName: "cube.fill")
+                    .font(.title3)
+                    .foregroundStyle(.cyan)
+                    .frame(width: 36, height: 36)
+                    .background(.cyan.opacity(0.1), in: RoundedRectangle(cornerRadius: 10))
+                
+                VStack(alignment: .leading, spacing: 3) {
                     Text(session.name)
-                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                        .font(.system(size: 14, weight: .semibold, design: .rounded))
                         .foregroundStyle(.white)
                     
                     HStack(spacing: 8) {
-                        if session.hasVideo { Label("Video", systemImage: "video.fill") }
-                        if session.hasEXR { Label("EXR", systemImage: "checkmark.circle.fill").foregroundStyle(.green) }
+                        if session.hasVideo {
+                            Label("Video", systemImage: "video.fill")
+                                .foregroundStyle(.white.opacity(0.6))
+                        }
+                        if session.hasEXR {
+                            Label("EXR", systemImage: "checkmark.circle.fill")
+                                .foregroundStyle(.green)
+                        }
                         Label("\(session.frameCount)", systemImage: "photo.stack")
                         Label(sessionSizeString(session.diskSizeMB), systemImage: "internaldrive")
                     }
@@ -590,11 +451,12 @@ struct ReMapView: View {
                 
                 Spacer()
                 
-                Image(systemName: "chevron.right.circle.fill")
-                    .font(.title3)
-                    .foregroundStyle(.cyan)
+                Image(systemName: "chevron.right")
+                    .font(.caption).fontWeight(.semibold)
+                    .foregroundStyle(.secondary)
             }
-            .padding(.vertical, 6)
+            .padding(10)
+            .background(Color(white: 0.1), in: RoundedRectangle(cornerRadius: 12))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -604,18 +466,19 @@ struct ReMapView: View {
     // MARK: - Dataset Workflow (Step-by-Step)
     
     private func datasetWorkflow(session: RecordedSession) -> some View {
-        VStack(alignment: .leading, spacing: 16) {
-            // Selected dataset info
-            HStack(spacing: 10) {
-                Image(systemName: "doc.zipper")
+        VStack(spacing: 16) {
+            // Header with selected dataset
+            HStack(spacing: 12) {
+                Image(systemName: "cube.fill")
                     .font(.title3)
                     .foregroundStyle(.cyan)
+                    .frame(width: 36, height: 36)
+                    .background(.cyan.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
                 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(session.name)
-                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        .font(.system(size: 15, weight: .bold, design: .rounded))
                         .foregroundStyle(.white)
-                    
                     HStack(spacing: 8) {
                         Label("\(session.frameCount) frames", systemImage: "photo.stack")
                         Label(sessionSizeString(session.diskSizeMB), systemImage: "internaldrive")
@@ -623,133 +486,201 @@ struct ReMapView: View {
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                 }
+                
+                Spacer()
+                
+                Button {
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                        selectedSession = nil
+                        selectedSource = nil
+                    }
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.title3)
+                        .foregroundStyle(.secondary)
+                }
             }
-            .padding(12)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(white: 0.08), in: RoundedRectangle(cornerRadius: 12))
+            .padding(14)
+            .background(Color(white: 0.07), in: RoundedRectangle(cornerRadius: 14))
             
-            // Step 1: Source Selection
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 6) {
-                    stepBadge(number: 1, isActive: selectedSource == nil, isComplete: selectedSource != nil)
-                    Text("Choose Source")
-                        .font(.subheadline).fontWeight(.semibold)
-                        .foregroundStyle(selectedSource == nil ? .white : .secondary)
+            // Steps with visual timeline
+            VStack(spacing: 0) {
+                // Step 1: Source
+                stepCard(
+                    number: 1,
+                    title: "Source",
+                    isActive: selectedSource == nil,
+                    isComplete: selectedSource != nil,
+                    isLast: false
+                ) {
+                    HStack(spacing: 10) {
+                        if session.hasVideo {
+                            sourceButton(
+                                source: .video,
+                                icon: "video.fill",
+                                description: "Smaller, faster",
+                                isSelected: selectedSource == .video
+                            )
+                        }
+                        if session.hasEXR {
+                            sourceButton(
+                                source: .exr,
+                                icon: "photo.stack.fill",
+                                description: "Higher quality",
+                                isSelected: selectedSource == .exr
+                            )
+                        } else if session.hasVideo {
+                            sourceButton(
+                                source: .exr,
+                                icon: "wand.and.stars",
+                                description: "Generate EXR",
+                                isSelected: selectedSource == .exr
+                            )
+                        }
+                    }
                 }
                 
-                HStack(spacing: 10) {
-                    if session.hasVideo {
-                        sourceButton(
-                            source: .video,
-                            icon: "video.fill",
-                            description: "Smaller, faster",
-                            isSelected: selectedSource == .video
-                        )
-                    }
-                    
-                    if session.hasEXR {
-                        sourceButton(
-                            source: .exr,
-                            icon: "photo.stack.fill",
-                            description: "Higher quality",
-                            isSelected: selectedSource == .exr
-                        )
-                    } else if session.hasVideo {
-                        // EXR not available but can be generated
-                        sourceButton(
-                            source: .exr,
-                            icon: "wand.and.stars",
-                            description: "Generate from video",
-                            isSelected: selectedSource == .exr
-                        )
-                    }
-                }
-            }
-            .transition(.move(edge: .leading).combined(with: .opacity))
-            
-            // Step 2 & 3: Settings & Upload (shown after source selection)
-            if selectedSource != nil {
-                VStack(alignment: .leading, spacing: 12) {
-                    // Step 2: Settings
-                    HStack(spacing: 6) {
-                        stepBadge(number: 2, isActive: true, isComplete: false)
-                        Text("Processing Settings")
-                            .font(.subheadline).fontWeight(.semibold)
-                            .foregroundStyle(.white)
-                        
-                        Spacer()
-                        
-                        Button {
-                            showProcessingSettings = true
-                        } label: {
-                            HStack(spacing: 4) {
-                                Image(systemName: "slider.horizontal.3")
-                                Text("Configure")
+                // Step 2: Settings (shown after source selection)
+                if selectedSource != nil {
+                    stepCard(
+                        number: 2,
+                        title: "Settings",
+                        isActive: true,
+                        isComplete: false,
+                        isLast: false
+                    ) {
+                        VStack(spacing: 10) {
+                            // Settings summary chips
+                            settingsSummary
+                            
+                            Button {
+                                showProcessingSettings = true
+                            } label: {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "slider.horizontal.3")
+                                    Text("Configure Processing")
+                                }
+                                .font(.caption).fontWeight(.semibold)
+                                .foregroundStyle(.cyan)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 10)
+                                .background(.cyan.opacity(0.1), in: RoundedRectangle(cornerRadius: 10))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 10)
+                                        .strokeBorder(.cyan.opacity(0.3), lineWidth: 1)
+                                )
                             }
-                            .font(.caption).fontWeight(.medium)
-                            .foregroundStyle(.purple)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
-                            .background(.purple.opacity(0.15), in: Capsule())
+                            .buttonStyle(.plain)
                         }
                     }
+                    .transition(.asymmetric(
+                        insertion: .move(edge: .bottom).combined(with: .opacity),
+                        removal: .opacity
+                    ))
                     
-                    // Quick info about current settings
-                    settingsSummary
-                        .transition(.opacity)
-                    
-                    Divider().background(.white.opacity(0.1))
-                    
-                    // Step 3: Upload & Process
-                    HStack(spacing: 6) {
-                        stepBadge(number: 3, isActive: true, isComplete: false)
-                        Text("Upload & Process")
-                            .font(.subheadline).fontWeight(.semibold)
-                            .foregroundStyle(.white)
-                    }
-                    
-                    Button {
-                        viewModel.uploadSource = selectedSource ?? .video
-                        Task {
-                            await viewModel.performUpload(session: session)
-                            // After successful upload, auto-start processing
-                            if let datasetId = viewModel.lastDatasetId {
-                                await viewModel.startProcessing(datasetId: datasetId)
-                                withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
-                                    selectedSession = nil
-                                    selectedSource = nil
-                                    sessions = CaptureSession.listSessions()
+                    // Step 3: Launch
+                    stepCard(
+                        number: 3,
+                        title: "Launch",
+                        isActive: true,
+                        isComplete: false,
+                        isLast: true
+                    ) {
+                        Button {
+                            viewModel.uploadSource = selectedSource ?? .video
+                            Task {
+                                await viewModel.performUpload(session: session)
+                                if let datasetId = viewModel.lastDatasetId {
+                                    await viewModel.startProcessing(datasetId: datasetId)
+                                    withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+                                        selectedSession = nil
+                                        selectedSource = nil
+                                        selectedTab = .active
+                                        sessions = CaptureSession.listSessions()
+                                    }
                                 }
                             }
+                        } label: {
+                            HStack {
+                                Image(systemName: "arrow.up.circle.fill")
+                                Text("Upload & Process")
+                                Spacer()
+                                Image(systemName: selectedSource == .exr ? "photo.stack.fill" : "video.fill")
+                                    .font(.caption)
+                                    .foregroundStyle(.white.opacity(0.6))
+                            }
+                            .font(.subheadline).fontWeight(.bold)
+                            .foregroundStyle(.white)
+                            .padding(14)
+                            .background(
+                                LinearGradient(
+                                    colors: [.cyan, .blue.opacity(0.7)],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                ),
+                                in: RoundedRectangle(cornerRadius: 12)
+                            )
                         }
-                    } label: {
-                        HStack {
-                            Image(systemName: "arrow.up.circle.fill")
-                            Text("Upload & Start Processing")
-                            Spacer()
-                            Image(systemName: selectedSource == .exr ? "photo.stack.fill" : "video.fill")
-                                .font(.caption)
-                                .foregroundStyle(.white.opacity(0.7))
-                        }
-                        .font(.subheadline).fontWeight(.semibold)
-                        .foregroundStyle(.white)
-                        .padding(14)
-                        .background(
-                            LinearGradient(
-                                colors: [.cyan.opacity(0.8), .blue.opacity(0.6)],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            ),
-                            in: RoundedRectangle(cornerRadius: 12)
-                        )
+                        .buttonStyle(.plain)
+                        .disabled(viewModel.isUploading || viewModel.isCreatingZIP)
                     }
-                    .disabled(viewModel.isUploading || viewModel.isCreatingZIP)
+                    .transition(.asymmetric(
+                        insertion: .move(edge: .bottom).combined(with: .opacity),
+                        removal: .opacity
+                    ))
                 }
-                .transition(.asymmetric(
-                    insertion: .move(edge: .bottom).combined(with: .opacity),
-                    removal: .opacity
-                ))
             }
+        }
+    }
+    
+    // MARK: - Step Card
+    
+    private func stepCard<Content: View>(
+        number: Int,
+        title: String,
+        isActive: Bool,
+        isComplete: Bool,
+        isLast: Bool,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            // Timeline indicator
+            VStack(spacing: 0) {
+                ZStack {
+                    if isComplete {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 22))
+                            .foregroundStyle(.green)
+                    } else {
+                        Text("\(number)")
+                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                            .foregroundStyle(isActive ? .black : .secondary)
+                            .frame(width: 24, height: 24)
+                            .background(
+                                isActive ? AnyShapeStyle(.cyan) : AnyShapeStyle(Color(white: 0.2)),
+                                in: Circle()
+                            )
+                    }
+                }
+                
+                if !isLast {
+                    Rectangle()
+                        .fill(isComplete ? .green.opacity(0.4) : Color(white: 0.15))
+                        .frame(width: 2)
+                        .frame(maxHeight: .infinity)
+                }
+            }
+            .frame(width: 24)
+            
+            // Content
+            VStack(alignment: .leading, spacing: 8) {
+                Text(title)
+                    .font(.subheadline).fontWeight(.semibold)
+                    .foregroundStyle(isActive || isComplete ? .white : .secondary)
+                
+                content()
+            }
+            .padding(.bottom, isLast ? 0 : 16)
         }
     }
     
@@ -761,17 +692,17 @@ struct ReMapView: View {
                 selectedSource = source
             }
         } label: {
-            VStack(spacing: 8) {
+            VStack(spacing: 6) {
                 Image(systemName: icon)
-                    .font(.title2)
+                    .font(.title3)
                 Text(source.rawValue)
-                    .font(.caption).fontWeight(.semibold)
+                    .font(.caption).fontWeight(.bold)
                 Text(description)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 10))
+                    .foregroundStyle(isSelected ? .white.opacity(0.7) : .secondary)
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 16)
+            .padding(.vertical, 14)
             .background(
                 isSelected
                     ? AnyShapeStyle(LinearGradient(colors: [.cyan.opacity(0.3), .blue.opacity(0.2)], startPoint: .top, endPoint: .bottom))
@@ -780,42 +711,23 @@ struct ReMapView: View {
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 12)
-                    .strokeBorder(isSelected ? .cyan : .clear, lineWidth: 1.5)
+                    .strokeBorder(isSelected ? .cyan : .white.opacity(0.08), lineWidth: 1.5)
             )
             .foregroundStyle(isSelected ? .cyan : .white)
         }
         .buttonStyle(.plain)
     }
     
-    // MARK: - Step Badge
-    
-    private func stepBadge(number: Int, isActive: Bool, isComplete: Bool) -> some View {
-        ZStack {
-            if isComplete {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 20))
-                    .foregroundStyle(.green)
-            } else {
-                Text("\(number)")
-                    .font(.system(size: 11, weight: .bold, design: .rounded))
-                    .foregroundStyle(isActive ? .black : .secondary)
-                    .frame(width: 22, height: 22)
-                    .background(
-                        isActive ? AnyShapeStyle(.cyan) : AnyShapeStyle(Color(white: 0.2)),
-                        in: Circle()
-                    )
-            }
-        }
-    }
-    
     // MARK: - Settings Summary
     
     private var settingsSummary: some View {
         let s = viewModel.processingSettings
-        return HStack(spacing: 12) {
+        return FlowLayout(spacing: 6) {
             settingChip(icon: "speedometer", text: "\(String(format: "%.1f", s.fps)) fps")
             settingChip(icon: "sparkle.magnifyingglass", text: s.featureType)
+            settingChip(icon: "arrow.left.arrow.right", text: s.matcherType)
             settingChip(icon: "map", text: s.mapperType)
+            settingChip(icon: "camera", text: s.cameraModel)
         }
     }
     
@@ -824,84 +736,371 @@ struct ReMapView: View {
             Image(systemName: icon)
             Text(text)
         }
-        .font(.caption2)
+        .font(.system(size: 10, weight: .medium))
         .foregroundStyle(.secondary)
         .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(Color(white: 0.1), in: Capsule())
+        .padding(.vertical, 5)
+        .background(Color(white: 0.12), in: Capsule())
     }
     
-    // MARK: - Failed Jobs Section
+    // MARK: - Active Jobs Tab
     
-    private var failedJobsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.orange)
-                Text("Failed / Cancelled")
-                    .font(.headline)
-                    .foregroundStyle(.white)
+    private var activeJobsContent: some View {
+        VStack(spacing: 16) {
+            if viewModel.processingJobs.isEmpty {
+                emptyStateCard(
+                    icon: "bolt.slash",
+                    title: "No Active Jobs",
+                    subtitle: "Start a new job from the New Job tab."
+                )
+            } else {
+                ForEach(viewModel.processingJobs) { job in
+                    activeJobCard(job: job)
+                        .transition(.asymmetric(
+                            insertion: .scale(scale: 0.9).combined(with: .opacity),
+                            removal: .move(edge: .trailing).combined(with: .opacity)
+                        ))
+                }
+            }
+            
+            if viewModel.isDownloading {
+                HStack(spacing: 10) {
+                    ProgressView().tint(.green).scaleEffect(0.8)
+                    Text("Downloading result…")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(12)
+                .background(Color(white: 0.07), in: RoundedRectangle(cornerRadius: 12))
+            }
+        }
+        .animation(.spring(response: 0.5, dampingFraction: 0.8), value: viewModel.processingJobs.count)
+    }
+    
+    private func activeJobCard(job: ReMapJobListItem) -> some View {
+        VStack(spacing: 12) {
+            // Header
+            HStack(spacing: 10) {
+                Group {
+                    if #available(iOS 18.0, *) {
+                        Image(systemName: job.parsedStatus.icon)
+                            .foregroundStyle(Color.fromString(job.parsedStatus.color))
+                            .symbolEffect(.pulse, isActive: job.parsedStatus == .processing)
+                    } else {
+                        Image(systemName: job.parsedStatus.icon)
+                            .foregroundStyle(Color.fromString(job.parsedStatus.color))
+                    }
+                }
+                .font(.title3)
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(job.datasetId ?? job.jobId)
+                        .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                    
+                    HStack(spacing: 6) {
+                        Text(job.parsedStatus.label)
+                            .font(.caption2).fontWeight(.semibold)
+                            .foregroundStyle(Color.fromString(job.parsedStatus.color))
+                        
+                        if let step = job.currentStep {
+                            Text("·")
+                                .foregroundStyle(.secondary)
+                            Text(step)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .font(.caption2)
+                }
                 
                 Spacer()
                 
-                Text("\(viewModel.failedJobs.count)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Text("\(job.progress)%")
+                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                    .foregroundStyle(Color.fromString(job.parsedStatus.color))
             }
             
-            ForEach(viewModel.failedJobs) { job in
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack(spacing: 6) {
-                            Image(systemName: job.parsedStatus.icon)
-                                .foregroundStyle(Color.fromString(job.parsedStatus.color))
-                            Text(job.jobId.prefix(12) + "…")
-                                .font(.system(size: 12, design: .monospaced))
-                                .foregroundStyle(.white)
-                        }
-                        Text(job.parsedStatus.label)
-                            .font(.caption2)
-                            .foregroundStyle(Color.fromString(job.parsedStatus.color))
-                    }
+            // Progress bar
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(Color(white: 0.15))
                     
-                    Spacer()
-                    
-                    Button {
-                        logsJobId = job.jobId
-                        showLogs = true
-                    } label: {
-                        Image(systemName: "doc.text")
-                            .font(.caption)
-                            .foregroundStyle(.cyan)
-                    }
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(
+                            LinearGradient(
+                                colors: [Color.fromString(job.parsedStatus.color), Color.fromString(job.parsedStatus.color).opacity(0.6)],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .frame(width: geo.size.width * CGFloat(job.progress) / 100.0)
+                        .animation(.easeInOut(duration: 0.5), value: job.progress)
                 }
-                .padding(.vertical, 4)
+            }
+            .frame(height: 6)
+            
+            // Actions
+            HStack(spacing: 8) {
+                actionButton(icon: "doc.text", label: "Logs", color: .cyan) {
+                    logsJobId = job.jobId
+                    showLogs = true
+                }
+                
+                actionButton(icon: "eye.fill", label: "Watch", color: .blue) {
+                    viewModel.startPolling(jobId: job.jobId)
+                }
+                
+                Spacer()
+                
+                actionButton(icon: "xmark.circle", label: "Cancel", color: .red.opacity(0.8)) {
+                    Task { await viewModel.cancelJob(jobId: job.jobId) }
+                }
             }
         }
         .padding(16)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+        .background(Color(white: 0.07), in: RoundedRectangle(cornerRadius: 14))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .strokeBorder(Color.fromString(job.parsedStatus.color).opacity(0.2), lineWidth: 1)
+        )
     }
     
-    // MARK: - Progress Row
+    // MARK: - History Tab
     
-    private func progressRow(label: String, progress: Double, color: Color) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                ProgressView()
-                    .tint(color)
-                    .scaleEffect(0.8)
-                Text(label)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Text("\(Int(progress * 100))%")
-                    .font(.system(.caption, design: .monospaced))
-                    .foregroundStyle(.secondary)
+    private var historyContent: some View {
+        VStack(spacing: 16) {
+            // Completed jobs
+            if !viewModel.completedJobs.isEmpty {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                        Text("Completed")
+                            .font(.headline)
+                            .foregroundStyle(.white)
+                        Spacer()
+                        Text("\(viewModel.completedJobs.count)")
+                            .font(.caption2).fontWeight(.bold)
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(.green.opacity(0.5), in: Capsule())
+                    }
+                    
+                    ForEach(viewModel.completedJobs) { job in
+                        completedJobRow(job: job)
+                    }
+                }
+                .padding(16)
+                .background(Color(white: 0.07), in: RoundedRectangle(cornerRadius: 14))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14)
+                        .strokeBorder(.green.opacity(0.15), lineWidth: 1)
+                )
             }
-            ProgressView(value: progress)
-                .tint(color)
-                .animation(.easeInOut(duration: 0.3), value: progress)
+            
+            // Failed / Cancelled jobs
+            if !viewModel.failedJobs.isEmpty {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange)
+                        Text("Failed / Cancelled")
+                            .font(.headline)
+                            .foregroundStyle(.white)
+                        Spacer()
+                        Text("\(viewModel.failedJobs.count)")
+                            .font(.caption2).fontWeight(.bold)
+                            .foregroundStyle(.secondary)
+                    }
+                    
+                    ForEach(viewModel.failedJobs) { job in
+                        failedJobRow(job: job)
+                    }
+                }
+                .padding(16)
+                .background(Color(white: 0.07), in: RoundedRectangle(cornerRadius: 14))
+            }
+            
+            // Empty state
+            if viewModel.completedJobs.isEmpty && viewModel.failedJobs.isEmpty {
+                emptyStateCard(
+                    icon: "clock",
+                    title: "No Job History",
+                    subtitle: "Completed and failed jobs will appear here."
+                )
+            }
         }
+    }
+    
+    private func completedJobRow(job: ReMapJobListItem) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundStyle(.green)
+                .font(.body)
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(job.datasetId ?? job.jobId)
+                    .font(.system(size: 12, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                
+                if let createdAt = job.createdAt {
+                    Text(createdAt)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            
+            Spacer()
+            
+            HStack(spacing: 6) {
+                Button {
+                    logsJobId = job.jobId
+                    showLogs = true
+                } label: {
+                    Image(systemName: "doc.text")
+                        .font(.caption)
+                        .foregroundStyle(.cyan)
+                        .frame(width: 30, height: 30)
+                        .background(.cyan.opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
+                }
+                
+                Button {
+                    Task { await viewModel.downloadResult(jobId: job.jobId) }
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.down.circle.fill")
+                        Text("Download")
+                    }
+                    .font(.caption).fontWeight(.medium)
+                    .foregroundStyle(.green)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(.green.opacity(0.1), in: Capsule())
+                }
+                .disabled(viewModel.isDownloading)
+            }
+        }
+        .padding(10)
+        .background(Color(white: 0.1), in: RoundedRectangle(cornerRadius: 12))
+    }
+    
+    private func failedJobRow(job: ReMapJobListItem) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: job.parsedStatus.icon)
+                .foregroundStyle(Color.fromString(job.parsedStatus.color))
+                .font(.body)
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(job.jobId.prefix(16) + "…")
+                    .font(.system(size: 12, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.white)
+                Text(job.parsedStatus.label)
+                    .font(.caption2)
+                    .foregroundStyle(Color.fromString(job.parsedStatus.color))
+            }
+            
+            Spacer()
+            
+            Button {
+                logsJobId = job.jobId
+                showLogs = true
+            } label: {
+                Image(systemName: "doc.text")
+                    .font(.caption)
+                    .foregroundStyle(.cyan)
+                    .frame(width: 30, height: 30)
+                    .background(.cyan.opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
+            }
+        }
+        .padding(10)
+        .background(Color(white: 0.1), in: RoundedRectangle(cornerRadius: 12))
+    }
+    
+    // MARK: - Upload Progress Card
+    
+    private func uploadProgressCard(icon: String, label: String, progress: Double, color: Color) -> some View {
+        VStack(spacing: 12) {
+            HStack(spacing: 10) {
+                Image(systemName: icon)
+                    .font(.title3)
+                    .foregroundStyle(color)
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(label)
+                        .font(.subheadline).fontWeight(.semibold)
+                        .foregroundStyle(.white)
+                    Text("\(Int(progress * 100))% complete")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                
+                Spacer()
+                
+                Text("\(Int(progress * 100))%")
+                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                    .foregroundStyle(color)
+            }
+            
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(Color(white: 0.15))
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(color)
+                        .frame(width: geo.size.width * progress)
+                        .animation(.easeInOut(duration: 0.3), value: progress)
+                }
+            }
+            .frame(height: 6)
+        }
+        .padding(16)
+        .background(Color(white: 0.07), in: RoundedRectangle(cornerRadius: 14))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .strokeBorder(color.opacity(0.2), lineWidth: 1)
+        )
+        .transition(.scale(scale: 0.95).combined(with: .opacity))
+    }
+    
+    // MARK: - Shared Components
+    
+    private func actionButton(icon: String, label: String, color: Color, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 4) {
+                Image(systemName: icon)
+                Text(label)
+            }
+            .font(.caption).fontWeight(.medium)
+            .foregroundStyle(color)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .background(color.opacity(0.1), in: Capsule())
+        }
+        .buttonStyle(.plain)
+    }
+    
+    private func emptyStateCard(icon: String, title: String, subtitle: String) -> some View {
+        VStack(spacing: 14) {
+            Image(systemName: icon)
+                .font(.system(size: 36))
+                .foregroundStyle(
+                    LinearGradient(colors: [.secondary.opacity(0.5), .secondary.opacity(0.2)], startPoint: .top, endPoint: .bottom)
+                )
+            Text(title)
+                .font(.subheadline).fontWeight(.semibold)
+                .foregroundStyle(.secondary)
+            Text(subtitle)
+                .font(.caption)
+                .foregroundStyle(.secondary.opacity(0.7))
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 40)
+        .background(Color(white: 0.07), in: RoundedRectangle(cornerRadius: 14))
     }
     
     // MARK: - Helpers
@@ -911,6 +1110,50 @@ struct ReMapView: View {
             return String(format: "%.1f GB", mb / 1024)
         }
         return String(format: "%.0f MB", mb)
+    }
+}
+
+// MARK: - Flow Layout (for chips)
+
+private struct FlowLayout: Layout {
+    var spacing: CGFloat = 6
+    
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let width = proposal.width ?? .infinity
+        var x: CGFloat = 0
+        var y: CGFloat = 0
+        var rowHeight: CGFloat = 0
+        
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x + size.width > width && x > 0 {
+                x = 0
+                y += rowHeight + spacing
+                rowHeight = 0
+            }
+            x += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
+        }
+        
+        return CGSize(width: width, height: y + rowHeight)
+    }
+    
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var x: CGFloat = bounds.minX
+        var y: CGFloat = bounds.minY
+        var rowHeight: CGFloat = 0
+        
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x + size.width > bounds.maxX && x > bounds.minX {
+                x = bounds.minX
+                y += rowHeight + spacing
+                rowHeight = 0
+            }
+            subview.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
+            x += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
+        }
     }
 }
 
