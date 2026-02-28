@@ -212,7 +212,7 @@ struct ViewfinderView: View {
             
             // Record button
             Button {
-                if viewModel.isRecording {
+                if viewModel.isRecording || viewModel.isWaitingForMesh {
                     viewModel.stopRecording()
                 } else {
                     viewModel.startRecording()
@@ -225,7 +225,9 @@ struct ViewfinderView: View {
                         .strokeBorder(
                             viewModel.isRecording
                                 ? LinearGradient(colors: [.red, .orange], startPoint: .top, endPoint: .bottom)
-                                : LinearGradient(colors: [.white, .gray], startPoint: .top, endPoint: .bottom),
+                                : viewModel.isWaitingForMesh
+                                    ? LinearGradient(colors: [.orange, .yellow], startPoint: .top, endPoint: .bottom)
+                                    : LinearGradient(colors: [.white, .gray], startPoint: .top, endPoint: .bottom),
                             lineWidth: 4
                         )
                         .frame(width: 76, height: 76)
@@ -235,6 +237,11 @@ struct ViewfinderView: View {
                         RoundedRectangle(cornerRadius: 8)
                             .fill(LinearGradient(colors: [.red, .orange], startPoint: .top, endPoint: .bottom))
                             .frame(width: 30, height: 30)
+                    } else if viewModel.isWaitingForMesh {
+                        // Pulsing hourglass while waiting for mesh
+                        Image(systemName: "hourglass")
+                            .font(.title2)
+                            .foregroundStyle(LinearGradient(colors: [.orange, .yellow], startPoint: .top, endPoint: .bottom))
                     } else {
                         Circle()
                             .fill(LinearGradient(colors: [.red, .red.opacity(0.8)], startPoint: .top, endPoint: .bottom))
