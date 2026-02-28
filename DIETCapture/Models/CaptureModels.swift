@@ -259,8 +259,12 @@ struct RecordedSession: Identifiable, Hashable {
     let thumbnailURL: URL?
     let hasEXR: Bool
     let exrDirectory: URL?
+    let diskSizeMB: Double
+    let duration: TimeInterval?
+    let meshURL: URL?
 
     var hasVideo: Bool { videoURL != nil }
+    var hasMesh: Bool { meshURL != nil }
     /// True when the session has a video file that has not yet been converted to an EXR sequence.
     var canConvertToEXR: Bool { hasVideo && !hasEXR }
 

@@ -26,11 +26,37 @@ final class AppSettings: ObservableObject {
     
     @Published var hasExternalStorage: Bool = false
     
+    // MARK: - Mesh Start Mode
+
+    enum MeshStartMode: String, CaseIterable, Identifiable {
+        case waitForPolygons = "Wait for First Polygons"
+        case bruteForce = "BruteForce (Instant)"
+        var id: String { rawValue }
+    }
+
+    @AppStorage("meshStartMode") var meshStartMode: MeshStartMode = .waitForPolygons
+
     // MARK: - LiDAR Defaults
     
     @AppStorage("defaultMaxDistance") var defaultMaxDistance: Double = 5.0
     @AppStorage("defaultConfidence") var defaultConfidence: Int = 1 // Medium
     @AppStorage("defaultSmoothing") var defaultSmoothing: Bool = true
+    @AppStorage("depthColorMap") var depthColorMap: DepthColorMap = .jet
+    
+    enum DepthColorMap: String, CaseIterable, Identifiable {
+        case jet = "Jet"
+        case viridis = "Viridis"
+        case turbo = "Turbo"
+        var id: String { rawValue }
+        
+        var processorColorMap: DepthMapProcessor.ColorMap {
+            switch self {
+            case .jet:    return .jet
+            case .viridis: return .viridis
+            case .turbo:  return .turbo
+            }
+        }
+    }
     
     enum VideoResolution: String, CaseIterable, Identifiable {
         case high = "3840 × 2160 (4K)"

@@ -14,6 +14,7 @@ struct ViewfinderView: View {
     @State private var showControls = false
     @State private var previewImage: UIImage?
     @State private var refreshTimer: Timer?
+    @State private var depthHistogramBins: [Float] = []
     
     var body: some View {
         ZStack {
@@ -51,8 +52,8 @@ struct ViewfinderView: View {
                             }
                     }
                     
-                    // Mesh Overlay (when viewing mesh)
-                    if viewModel.lidar.viewMode == .mesh {
+                    // Mesh Overlay (when viewing mesh, or ghost mesh over RGB)
+                    if viewModel.lidar.viewMode == .mesh || (viewModel.lidar.viewMode == .rgb && viewModel.lidar.ghostMeshEnabled) {
                         ARMeshOverlayView(session: viewModel.lidar.arService.arSession)
                             .clipShape(RoundedRectangle(cornerRadius: 20))
                             .allowsHitTesting(false) // Let touches pass through
@@ -67,6 +68,13 @@ struct ViewfinderView: View {
                         .padding(12)
                         
                         Spacer()
+                        
+                        // Depth histogram (when viewing depth)
+                        if viewModel.lidar.viewMode == .depth && !depthHistogramBins.isEmpty {
+                            DepthHistogramView(bins: depthHistogramBins, maxDepth: viewModel.settings.lidar.maxDistance)
+                                .padding(.horizontal, 12)
+                                .padding(.bottom, 4)
+                        }
                         
                         // Depth legend (when viewing depth)
                         if viewModel.lidar.viewMode == .depth {
@@ -134,6 +142,31 @@ struct ViewfinderView: View {
                         .clipShape(Capsule())
                     }
                 }
+                
+                // Ghost Mesh toggle (only meaningful in RGB mode)
+                if viewModel.lidar.viewMode == .rgb {
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            viewModel.lidar.ghostMeshEnabled.toggle()
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "move.3d")
+                                .font(.caption2)
+                            Text("Ghost")
+                                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(
+                            viewModel.lidar.ghostMeshEnabled
+                                ? AnyShapeStyle(LinearGradient(colors: [.purple, .indigo], startPoint: .leading, endPoint: .trailing))
+                                : AnyShapeStyle(.ultraThinMaterial)
+                        )
+                        .foregroundStyle(viewModel.lidar.ghostMeshEnabled ? .white : .secondary)
+                        .clipShape(Capsule())
+                    }
+                }
             }
             .padding(.horizontal, 2)
         }
@@ -179,7 +212,7 @@ struct ViewfinderView: View {
             
             // Record button
             Button {
-                if viewModel.isRecording {
+                if viewModel.isRecording || viewModel.isWaitingForMesh {
                     viewModel.stopRecording()
                 } else {
                     viewModel.startRecording()
@@ -192,7 +225,9 @@ struct ViewfinderView: View {
                         .strokeBorder(
                             viewModel.isRecording
                                 ? LinearGradient(colors: [.red, .orange], startPoint: .top, endPoint: .bottom)
-                                : LinearGradient(colors: [.white, .gray], startPoint: .top, endPoint: .bottom),
+                                : viewModel.isWaitingForMesh
+                                    ? LinearGradient(colors: [.orange, .yellow], startPoint: .top, endPoint: .bottom)
+                                    : LinearGradient(colors: [.white, .gray], startPoint: .top, endPoint: .bottom),
                             lineWidth: 4
                         )
                         .frame(width: 76, height: 76)
@@ -202,6 +237,11 @@ struct ViewfinderView: View {
                         RoundedRectangle(cornerRadius: 8)
                             .fill(LinearGradient(colors: [.red, .orange], startPoint: .top, endPoint: .bottom))
                             .frame(width: 30, height: 30)
+                    } else if viewModel.isWaitingForMesh {
+                        // Pulsing hourglass while waiting for mesh
+                        Image(systemName: "hourglass")
+                            .font(.title2)
+                            .foregroundStyle(LinearGradient(colors: [.orange, .yellow], startPoint: .top, endPoint: .bottom))
                     } else {
                         Circle()
                             .fill(LinearGradient(colors: [.red, .red.opacity(0.8)], startPoint: .top, endPoint: .bottom))
@@ -246,6 +286,14 @@ struct ViewfinderView: View {
                 previewImage = imageFromPixelBuffer(buffer, orientation: .right)
             }
         }
+        
+        // Compute depth histogram for the histogram overlay
+        if viewModel.lidar.viewMode == .depth, let depth = viewModel.lidar.currentDepthMap {
+            let maxDist = viewModel.settings.lidar.maxDistance
+            depthHistogramBins = DepthMapProcessor.depthHistogram(depth, maxDepth: maxDist, binCount: 32)
+        } else if !depthHistogramBins.isEmpty {
+            depthHistogramBins = []
+        }
     }
     
     private func imageFromPixelBuffer(_ buffer: CVPixelBuffer, orientation: UIImage.Orientation = .right) -> UIImage? {
@@ -260,5 +308,46 @@ struct ViewfinderView: View {
     private func hapticFeedback() {
         let generator = UIImpactFeedbackGenerator(style: .medium)
         generator.impactOccurred()
+    }
+}
+
+// MARK: - Depth Histogram Overlay
+
+struct DepthHistogramView: View {
+    let bins: [Float]
+    let maxDepth: Float
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 2) {
+                ForEach(0..<bins.count, id: \.self) { i in
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(barColor(for: i))
+                        .frame(maxWidth: .infinity)
+                        .frame(height: max(2, CGFloat(bins[i]) * 40))
+                }
+            }
+            .frame(height: 44)
+            .animation(.easeOut(duration: 0.15), value: bins)
+            
+            HStack {
+                Text("0m")
+                    .font(.system(size: 8, design: .monospaced))
+                Spacer()
+                Text("Depth Distribution")
+                    .font(.system(size: 8, weight: .medium, design: .rounded))
+                Spacer()
+                Text(String(format: "%.1fm", maxDepth))
+                    .font(.system(size: 8, design: .monospaced))
+            }
+            .foregroundStyle(.secondary)
+        }
+        .padding(8)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
+    }
+    
+    private func barColor(for index: Int) -> Color {
+        let t = Double(index) / Double(max(1, bins.count - 1))
+        return Color(hue: (1 - t) * 0.66, saturation: 0.9, brightness: 0.9)
     }
 }

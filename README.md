@@ -30,7 +30,8 @@
 
 ReScan uses advanced ARKit and AVFoundation capabilities, so it must be sideloaded onto your iOS device.
 
-To make things **extremely easy and turnkey**, we provide automated installation scripts to set up AltStore and sideload the app on Windows and Linux.
+To make things **extremely easy and turnkey**, we provide automated installation scripts to set up AltStore and sideload the app on Windows and Linux. 
+(Linux Autoinstaller might be broken, please follow manual installation & sideload using SideStore & iloader https://github.com/nab138/iloader)
 
 ### Prerequisites
 - An iOS device with a **LiDAR scanner** (iPhone 12 Pro or newer, iPad Pro 2020 or newer).

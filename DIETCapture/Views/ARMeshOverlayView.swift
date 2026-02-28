@@ -14,11 +14,9 @@ struct ARMeshOverlayView: UIViewRepresentable {
     func makeUIView(context: Context) -> ARSCNView {
         let arView = ARSCNView(frame: .zero)
         arView.session = session
-        arView.backgroundColor = .clear // Let camera feed show through underneath (handled by SwiftUI)
-        
-        // We only want to render the mesh over our existing SwiftUI Camera feed,
-        // so we disable the default ARSCNView camera background.
-        arView.scene.background.contents = UIColor.clear
+        // ARSCNView renders the live camera feed as its scene background automatically,
+        // giving us RGB + mesh in a single view without a separate SwiftUI preview layer.
+        arView.backgroundColor = .black
         
         arView.delegate = context.coordinator
         
