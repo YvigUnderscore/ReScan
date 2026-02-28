@@ -813,7 +813,7 @@ struct ReMapView: View {
     private var settingsSummary: some View {
         let s = viewModel.processingSettings
         return HStack(spacing: 12) {
-            settingChip(icon: "speedometer", text: "\(s.fps, specifier: "%.1f") fps")
+            settingChip(icon: "speedometer", text: "(String(format: "%.1f", s.fps)) fps")
             settingChip(icon: "sparkle.magnifyingglass", text: s.featureType)
             settingChip(icon: "map", text: s.mapperType)
         }
