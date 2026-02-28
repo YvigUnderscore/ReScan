@@ -257,6 +257,9 @@ final class ReMapViewModel {
         let updatedSessions = CaptureSession.listSessions()
         if let updatedSession = updatedSessions.first(where: { $0.id == session.id }), updatedSession.hasEXR {
             await performUpload(session: updatedSession)
+        } else if !isGeneratingEXR {
+            // Only show error if generation didn't already report a failure
+            showErrorMessage("EXR generation completed but no EXR files were found. Upload aborted.")
         }
     }
     
