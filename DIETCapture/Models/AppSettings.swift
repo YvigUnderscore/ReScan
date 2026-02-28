@@ -43,6 +43,14 @@ final class AppSettings: ObservableObject {
     @AppStorage("defaultSmoothing") var defaultSmoothing: Bool = true
     @AppStorage("depthColorMap") var depthColorMap: DepthColorMap = .jet
     
+    // MARK: - Adaptive Mesh Refinement
+    
+    /// Enable adaptive mesh refinement during capture
+    @AppStorage("adaptiveMeshRefinement") var adaptiveMeshRefinement: Bool = false
+    
+    /// Detail level for adaptive mesh subdivision
+    @AppStorage("meshDetailLevel") var meshDetailLevel: MeshDetailLevel = .medium
+    
     enum DepthColorMap: String, CaseIterable, Identifiable {
         case jet = "Jet"
         case viridis = "Viridis"
