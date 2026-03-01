@@ -149,7 +149,7 @@ struct SettingsView: View {
             icon: "sensor.tag.radiowaves.forward.fill",
             iconColor: .green,
             title: "LiDAR",
-            subtitle: settings.lidarEnabled ? "Enabled · \(settings.defaultMaxDistance, specifier: "%.1f")m" : "Disabled"
+            subtitle: settings.lidarEnabled ? "Enabled · (String(format: "%.1f", settings.defaultMaxDistance))m" : "Disabled"
         ) {
             VStack(spacing: 14) {
                 // LiDAR Toggle
