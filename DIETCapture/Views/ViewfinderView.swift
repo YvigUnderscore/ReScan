@@ -33,7 +33,7 @@ struct ViewfinderView: View {
                     storageMB: viewModel.storageAvailableMB,
                     thermalState: viewModel.thermalState
                 )
-                .padding(.top, 4)
+                .padding(.top, 8)
                 
                 // MARK: - Viewfinder with Pass Viewer
                 ZStack {
@@ -83,13 +83,13 @@ struct ViewfinderView: View {
                         }
                     }
                 }
-                .padding(.horizontal, 6)
-                .padding(.vertical, 4)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
                 .frame(maxHeight: .infinity)
                 
                 // MARK: - Bottom Bar
                 captureControls
-                    .padding(.bottom, 4)
+                    .padding(.bottom, 12)
             }
         }
         .statusBarHidden(true)
