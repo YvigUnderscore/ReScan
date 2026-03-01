@@ -48,6 +48,11 @@ final class AppSettings: ObservableObject {
     
     @Published var hasExternalStorage: Bool = false
     
+    // MARK: - LiDAR Enabled
+    
+    /// Whether LiDAR scanning is enabled. When disabled, Depth/Conf/Mesh are not captured and 4K is available.
+    @AppStorage("lidarEnabled") var lidarEnabled: Bool = true
+    
     // MARK: - Mesh Start Mode
 
     enum MeshStartMode: String, CaseIterable, Identifiable {
@@ -89,8 +94,8 @@ final class AppSettings: ObservableObject {
     }
     
     enum VideoResolution: String, CaseIterable, Identifiable {
-        case high = "1920 × 2160 (2K)"
-        case medium = "1920 × 1080 (1080p)"
+        case high = "1920 × 1440"
+        case fourK = "3840 × 2880 (4K)"
         var id: String { rawValue }
     }
     

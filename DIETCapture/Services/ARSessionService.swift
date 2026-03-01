@@ -56,17 +56,16 @@ final class ARSessionService: NSObject {
         let formats = ARWorldTrackingConfiguration.supportedVideoFormats
         var selectedFormat: ARConfiguration.VideoFormat
         
-        if settings.videoResolution == .high {
-            // Highest resolution at 30fps
+        if settings.videoResolution == .fourK && !settings.lidarEnabled {
+            // 4K: highest resolution available (only when LiDAR is disabled)
+            selectedFormat = formats
+                .max(by: { ($0.imageResolution.width * $0.imageResolution.height) < ($1.imageResolution.width * $1.imageResolution.height) })
+                ?? formats.first!
+        } else {
+            // Default: highest resolution at 30fps
             selectedFormat = formats.filter({ $0.framesPerSecond == 30 })
                 .max(by: { ($0.imageResolution.width * $0.imageResolution.height) < ($1.imageResolution.width * $1.imageResolution.height) })
                 ?? formats.max(by: { ($0.imageResolution.width * $0.imageResolution.height) < ($1.imageResolution.width * $1.imageResolution.height) })!
-        } else {
-            // Medium (~1080p) at 30fps
-            selectedFormat = formats.filter({ $0.framesPerSecond == 30 })
-                .first(where: { $0.imageResolution.height >= 1080 && $0.imageResolution.height < 1440 })
-                ?? formats.first(where: { $0.imageResolution.height >= 1080 && $0.imageResolution.height < 1440 })
-                ?? formats.first!
         }
         
         config.videoFormat = selectedFormat
@@ -82,29 +81,31 @@ final class ARSessionService: NSObject {
             }
         }
         
-        // Scene depth (LiDAR)
-        if ARWorldTrackingConfiguration.supportsFrameSemantics(.sceneDepth) {
-            config.frameSemantics.insert(.sceneDepth)
-        }
-        
-        // Smoothed scene depth
-        if smoothingEnabled,
-           ARWorldTrackingConfiguration.supportsFrameSemantics(.smoothedSceneDepth) {
-            config.frameSemantics.insert(.smoothedSceneDepth)
-        }
-        
-        // Scene reconstruction (mesh)
-        if ARWorldTrackingConfiguration.supportsSceneReconstruction(.meshWithClassification) {
-            config.sceneReconstruction = .meshWithClassification
+        // Scene depth and mesh (LiDAR) — only when LiDAR is enabled
+        if settings.lidarEnabled {
+            if ARWorldTrackingConfiguration.supportsFrameSemantics(.sceneDepth) {
+                config.frameSemantics.insert(.sceneDepth)
+            }
+            
+            if smoothingEnabled,
+               ARWorldTrackingConfiguration.supportsFrameSemantics(.smoothedSceneDepth) {
+                config.frameSemantics.insert(.smoothedSceneDepth)
+            }
+            
+            if ARWorldTrackingConfiguration.supportsSceneReconstruction(.meshWithClassification) {
+                config.sceneReconstruction = .meshWithClassification
+            }
         }
         
         // Environment texturing
         config.environmentTexturing = .automatic
         
-        // High resolution frame capturing
-        if let hiResFormat = ARWorldTrackingConfiguration
-            .recommendedVideoFormatForHighResolutionFrameCapturing {
-            config.videoFormat = hiResFormat
+        // High resolution frame capturing (only when not in 4K mode)
+        if settings.videoResolution != .fourK || settings.lidarEnabled {
+            if let hiResFormat = ARWorldTrackingConfiguration
+                .recommendedVideoFormatForHighResolutionFrameCapturing {
+                config.videoFormat = hiResFormat
+            }
         }
         
         // World alignment

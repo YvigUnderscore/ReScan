@@ -26,6 +26,7 @@ final class CaptureSession {
     var sessionDirectory: URL?
     var frameMetadata: [CaptureFrameMetadata] = []
     var encodingMode: VideoEncodingMode = .standardHEVC
+    var lidarEnabled: Bool = true
     
     var estimatedStorageUsedMB: Double = 0
     var availableStorageMB: Double = 0
@@ -52,7 +53,7 @@ final class CaptureSession {
     
     var cameraMatrixURL: URL? { sessionDirectory?.appendingPathComponent("camera_matrix.csv") }
     var odometryURL: URL? { sessionDirectory?.appendingPathComponent("odometry.csv") }
-    var meshURL: URL? { sessionDirectory?.appendingPathComponent("mesh.obj") }
+    var meshURL: URL? { lidarEnabled ? sessionDirectory?.appendingPathComponent("mesh.obj") : nil }
     
     // MARK: - Methods
     
@@ -69,7 +70,11 @@ final class CaptureSession {
         let sessionName = "scan_\(dateFormatter.string(from: Date()))"
         let sessionDir = baseDir.appendingPathComponent(sessionName)
         
-        var subdirectories = ["depth", "confidence"]
+        var subdirectories: [String] = []
+        
+        if lidarEnabled {
+            subdirectories.append(contentsOf: ["depth", "confidence"])
+        }
         
         if encodingMode == .exrSequence {
             subdirectories.append("rgb")
@@ -78,6 +83,11 @@ final class CaptureSession {
         for subdir in subdirectories {
             let dir = sessionDir.appendingPathComponent(subdir)
             try fileManager.createDirectory(at: dir, withIntermediateDirectories: true)
+        }
+        
+        // Ensure session directory exists even if no subdirectories
+        if subdirectories.isEmpty {
+            try fileManager.createDirectory(at: sessionDir, withIntermediateDirectories: true)
         }
         
         sessionDirectory = sessionDir

@@ -117,9 +117,12 @@ struct ViewfinderView: View {
     // MARK: - Pass Viewer Buttons
     
     private var passViewerButtons: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
+        let lidarEnabled = AppSettings.shared.lidarEnabled
+        let availableModes = lidarEnabled ? ViewMode.allCases : [ViewMode.rgb]
+        
+        return ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 6) {
-                ForEach(ViewMode.allCases) { mode in
+                ForEach(availableModes) { mode in
                     Button {
                         withAnimation(.easeInOut(duration: 0.2)) {
                             viewModel.lidar.viewMode = mode
@@ -143,8 +146,8 @@ struct ViewfinderView: View {
                     }
                 }
                 
-                // Ghost Mesh toggle (only meaningful in RGB mode)
-                if viewModel.lidar.viewMode == .rgb {
+                // Ghost Mesh toggle (only meaningful in RGB mode with LiDAR enabled)
+                if viewModel.lidar.viewMode == .rgb && lidarEnabled {
                     Button {
                         withAnimation(.easeInOut(duration: 0.2)) {
                             viewModel.lidar.ghostMeshEnabled.toggle()
