@@ -135,16 +135,20 @@ final class CaptureViewModel {
             captureInterval = appSettings.captureFPS.captureInterval
             lastCaptureTimestamp = -1
             
+            // Pass LiDAR state to session so it can skip depth/confidence directories
+            session.lidarEnabled = appSettings.lidarEnabled
+            
             _ = try session.createSessionDirectory()
             
-            // Initialize adaptive mesh refinement if enabled
-            if appSettings.adaptiveMeshRefinement {
+            // Initialize adaptive mesh refinement if enabled (only with LiDAR)
+            if appSettings.adaptiveMeshRefinement && appSettings.lidarEnabled {
                 meshRefinement = AdaptiveMeshRefinement(detailLevel: appSettings.meshDetailLevel)
             } else {
                 meshRefinement = nil
             }
             
-            if appSettings.meshStartMode == .bruteForce {
+            if !appSettings.lidarEnabled || appSettings.meshStartMode == .bruteForce {
+                // Start immediately when LiDAR is disabled (no mesh to wait for)
                 beginCapture()
             } else {
                 // WaitForPolygons: defer actual start until first mesh anchors arrive
@@ -330,29 +334,31 @@ final class CaptureViewModel {
             self.session.addFrame(metadata: metadata)
         }
         
-        // Export depth and confidence asynchronously
-        exportQueue.async { [weak self] in
-            guard let self = self else { return }
-            
-            // Save depth map (16-bit PNG in mm)
-            if let depthMap = frame.sceneDepth?.depthMap,
-               let depthCopy = DepthMapProcessor.copyDepthMap(depthMap),
-               let url = self.session.depthURL(for: frameIndex) {
-                DepthMapProcessor.filterByDistance(depthCopy, maxDistance: self.settings.lidar.maxDistance)
-                self.exportService.saveDepthMap16BitPNG(depthCopy, to: url) { result in
-                    if case .failure(let error) = result {
-                        print("[CaptureVM] Depth export error: \(error)")
+        // Export depth and confidence asynchronously (only when LiDAR is enabled)
+        if AppSettings.shared.lidarEnabled {
+            exportQueue.async { [weak self] in
+                guard let self = self else { return }
+                
+                // Save depth map (16-bit PNG in mm)
+                if let depthMap = frame.sceneDepth?.depthMap,
+                   let depthCopy = DepthMapProcessor.copyDepthMap(depthMap),
+                   let url = self.session.depthURL(for: frameIndex) {
+                    DepthMapProcessor.filterByDistance(depthCopy, maxDistance: self.settings.lidar.maxDistance)
+                    self.exportService.saveDepthMap16BitPNG(depthCopy, to: url) { result in
+                        if case .failure(let error) = result {
+                            print("[CaptureVM] Depth export error: \(error)")
+                        }
                     }
                 }
-            }
-            
-            // Save confidence map
-            if let confMap = frame.sceneDepth?.confidenceMap,
-               let confCopy = DepthMapProcessor.copyDepthMap(confMap),
-               let url = self.session.confidenceURL(for: frameIndex) {
-                self.exportService.saveConfidenceMap(confCopy, to: url) { result in
-                    if case .failure(let error) = result {
-                        print("[CaptureVM] Confidence export error: \(error)")
+                
+                // Save confidence map
+                if let confMap = frame.sceneDepth?.confidenceMap,
+                   let confCopy = DepthMapProcessor.copyDepthMap(confMap),
+                   let url = self.session.confidenceURL(for: frameIndex) {
+                    self.exportService.saveConfidenceMap(confCopy, to: url) { result in
+                        if case .failure(let error) = result {
+                            print("[CaptureVM] Confidence export error: \(error)")
+                        }
                     }
                 }
             }

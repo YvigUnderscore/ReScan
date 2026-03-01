@@ -58,7 +58,7 @@ struct ContentView: View {
                     .transition(.opacity)
             } else if !permissionsChecked {
                 loadingView
-            } else if !viewModel.camera.capabilities.hasLiDAR {
+            } else if !viewModel.camera.capabilities.hasLiDAR && AppSettings.shared.lidarEnabled {
                 noLiDARView
             } else if !hasPermissions {
                 permissionsView

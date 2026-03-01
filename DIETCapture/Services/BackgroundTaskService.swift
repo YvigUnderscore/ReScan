@@ -40,7 +40,9 @@ final class BackgroundTaskService: @unchecked Sendable {
 
     func scheduleAppRefresh() {
         let request = BGAppRefreshTaskRequest(identifier: Self.appRefreshIdentifier)
-        request.earliestBeginDate = Date(timeIntervalSinceNow: 15 * 60) // 15 minutes
+        // Schedule more frequently when there are active jobs
+        let hasActiveJobs = !(UserDefaults.standard.stringArray(forKey: "bg_activeJobIds") ?? []).isEmpty
+        request.earliestBeginDate = Date(timeIntervalSinceNow: hasActiveJobs ? 60 : 15 * 60)
         submit(request)
     }
 
@@ -106,18 +108,38 @@ final class BackgroundTaskService: @unchecked Sendable {
                 let status = try await ReMapAPIService.shared.jobStatus(jobId: jobId)
                 let parsed = ReMapJobStatus(rawValue: status.status)
                 let datasetName = names[jobId] ?? "Dataset"
+                let progressDouble = Double(status.progress) / 100.0
+                let step = status.currentStep ?? status.message ?? status.status.capitalized
+
+                // Update Live Activity with latest progress from background
+                if parsed?.isTerminal != true {
+                    await LiveActivityService.shared.updateActivity(
+                        status: status.status,
+                        progress: progressDouble,
+                        step: step
+                    )
+                }
 
                 if parsed?.isTerminal == true {
                     untrackJob(id: jobId)
                     if parsed == .completed {
                         NotificationService.shared.sendJobCompletedNotification(jobId: jobId, datasetName: datasetName)
+                        await LiveActivityService.shared.endActivity(success: true, step: "Processing complete!")
                     } else if parsed == .failed {
                         NotificationService.shared.sendJobFailedNotification(jobId: jobId, datasetName: datasetName, error: status.message)
+                        await LiveActivityService.shared.endActivity(success: false, step: "Processing failed")
                     }
                 }
             } catch {
                 print("[BackgroundTask] Poll error for job \(jobId): \(error)")
             }
+        }
+        
+        // Reschedule if there are still active jobs
+        let remainingIds = UserDefaults.standard.stringArray(forKey: "bg_activeJobIds") ?? []
+        if !remainingIds.isEmpty {
+            scheduleAppRefresh()
+            scheduleProcessingTask()
         }
     }
 

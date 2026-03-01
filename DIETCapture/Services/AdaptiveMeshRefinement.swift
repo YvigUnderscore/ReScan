@@ -63,6 +63,13 @@ final class AdaptiveMeshRefinement {
     /// Lock for thread-safe access to the grid.
     private let lock = NSLock()
 
+    /// Tracks the last processed geometry version per anchor to avoid re-counting unchanged anchors.
+    private var anchorVersions: [UUID: simd_float4x4] = [:]
+    
+    /// Minimum interval between observation recordings to avoid over-counting.
+    private let observationInterval: TimeInterval = 0.5
+    private var lastObservationTime: TimeInterval = -1
+
     // MARK: - Statistics
 
     private(set) var statistics = MeshStatistics()
@@ -73,17 +80,17 @@ final class AdaptiveMeshRefinement {
         switch detailLevel {
         case .low:
             cellSize = 0.10
-            subdivisionThreshold = 6
+            subdivisionThreshold = 3
             maxSubdivisionLevel = 1
             targetEdgeLength = 0.20
         case .medium:
             cellSize = 0.05
-            subdivisionThreshold = 4
+            subdivisionThreshold = 2
             maxSubdivisionLevel = 2
             targetEdgeLength = 0.10
         case .high:
             cellSize = 0.03
-            subdivisionThreshold = 3
+            subdivisionThreshold = 2
             maxSubdivisionLevel = 3
             targetEdgeLength = 0.05
         }
@@ -91,13 +98,32 @@ final class AdaptiveMeshRefinement {
 
     // MARK: - Observation Tracking
 
-    /// Records observations for all vertices in the given mesh anchors.
-    /// Call this periodically (e.g. every AR frame) during capture.
+    /// Records observations for vertices in mesh anchors that have changed since the last call.
+    /// Uses anchor identity and transform comparison to avoid re-counting unchanged anchors,
+    /// and applies time-based debouncing to prevent over-counting from frequent frame updates.
     func recordObservations(anchors: [ARMeshAnchor], timestamp: TimeInterval) {
+        // Time-based debounce: skip if called too frequently
+        if lastObservationTime >= 0 && (timestamp - lastObservationTime) < observationInterval {
+            return
+        }
+        
         lock.lock()
         defer { lock.unlock() }
+        
+        lastObservationTime = timestamp
 
         for anchor in anchors {
+            let anchorId = anchor.identifier
+            let currentTransform = anchor.transform
+            
+            // Only process anchors whose transform has changed (indicating mesh update)
+            if let previousTransform = anchorVersions[anchorId] {
+                if previousTransform == currentTransform {
+                    continue
+                }
+            }
+            anchorVersions[anchorId] = currentTransform
+            
             let geometry = anchor.geometry
             let transform = anchor.transform
             let vertexBuffer = geometry.vertices.buffer.contents()
@@ -212,6 +238,8 @@ final class AdaptiveMeshRefinement {
     func reset() {
         lock.lock()
         grid.removeAll()
+        anchorVersions.removeAll()
+        lastObservationTime = -1
         statistics = MeshStatistics()
         lock.unlock()
     }

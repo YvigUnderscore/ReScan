@@ -526,14 +526,14 @@ struct ReMapView: View {
                             sourceButton(
                                 source: .exr,
                                 icon: "photo.stack.fill",
-                                description: "Higher quality",
+                                description: "EXR sequence ready",
                                 isSelected: selectedSource == .exr
                             )
                         } else if session.hasVideo {
                             sourceButton(
                                 source: .exr,
                                 icon: "wand.and.stars",
-                                description: "Generate EXR",
+                                description: "EXR will be generated",
                                 isSelected: selectedSource == .exr
                             )
                         }
@@ -589,14 +589,28 @@ struct ReMapView: View {
                         Button {
                             viewModel.uploadSource = selectedSource ?? .video
                             Task {
-                                await viewModel.performUpload(session: session)
-                                if let datasetId = viewModel.lastDatasetId {
-                                    await viewModel.startProcessing(datasetId: datasetId)
-                                    withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
-                                        selectedSession = nil
-                                        selectedSource = nil
-                                        selectedTab = .active
-                                        sessions = CaptureSession.listSessions()
+                                // If EXR is selected but not yet generated, auto-generate then upload
+                                if selectedSource == .exr && !session.hasEXR && session.hasVideo {
+                                    await viewModel.generateEXRAndUpload(session: session)
+                                    if let datasetId = viewModel.lastDatasetId {
+                                        await viewModel.startProcessing(datasetId: datasetId)
+                                        withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+                                            selectedSession = nil
+                                            selectedSource = nil
+                                            selectedTab = .active
+                                            sessions = CaptureSession.listSessions()
+                                        }
+                                    }
+                                } else {
+                                    await viewModel.performUpload(session: session)
+                                    if let datasetId = viewModel.lastDatasetId {
+                                        await viewModel.startProcessing(datasetId: datasetId)
+                                        withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+                                            selectedSession = nil
+                                            selectedSource = nil
+                                            selectedTab = .active
+                                            sessions = CaptureSession.listSessions()
+                                        }
                                     }
                                 }
                             }
