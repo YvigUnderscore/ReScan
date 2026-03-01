@@ -323,46 +323,93 @@ struct ReMapProcessingSettingsView: View {
     // MARK: - Performance Section
     
     private var performanceSection: some View {
-        settingsCard(
+        let totalFrames: Int = {
+            if let duration = sourceDuration, duration > 0 {
+                // At max FPS (30), this is the total number of frames possible
+                return max(1, Int(ceil(duration * 30.0)))
+            }
+            return 0
+        }()
+        let currentFrameCount: Int = {
+            if let duration = sourceDuration, duration > 0 {
+                return max(1, Int(ceil(duration * settings.fps)))
+            }
+            return 0
+        }()
+        let subtitleText: String = {
+            if totalFrames > 0 {
+                return "\(currentFrameCount) frames · \(settings.mapperType)"
+            }
+            return "\(String(format: "%.1f", settings.fps)) fps · \(settings.mapperType)"
+        }()
+        
+        return settingsCard(
             section: .performance,
             icon: "gauge.with.dots.needle.33percent",
             iconColor: .orange,
             title: "Performance",
-            subtitle: "\(String(format: "%.1f", settings.fps)) fps · \(settings.mapperType)"
+            subtitle: subtitleText
         ) {
             VStack(spacing: 14) {
-                // FPS
+                // Frames to Extract (or FPS fallback)
                 VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Image(systemName: "speedometer")
-                            .font(.caption)
-                            .foregroundStyle(.orange)
-                            .frame(width: 20)
-                        Text("Extraction FPS")
-                            .font(.subheadline)
-                            .foregroundStyle(.white)
-                        Spacer()
-                        Text("\(settings.fps, specifier: "%.1f")")
-                            .font(.system(.caption, design: .monospaced))
-                            .foregroundStyle(.orange)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 3)
-                            .background(.orange.opacity(0.1), in: Capsule())
-                    }
-                    Slider(value: $settings.fps, in: 1...30, step: 0.5)
-                        .tint(.orange)
-                    if let duration = sourceDuration, duration > 0 {
-                        let estimatedFrames = Int(ceil(duration * settings.fps))
-                        HStack(spacing: 4) {
+                    if totalFrames > 0 {
+                        // Frame count slider mode
+                        HStack {
                             Image(systemName: "photo.stack")
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                                .frame(width: 20)
+                            Text("Frames to Extract")
+                                .font(.subheadline)
+                                .foregroundStyle(.white)
+                            Spacer()
+                            Text("\(currentFrameCount)")
+                                .font(.system(.caption, design: .monospaced))
+                                .foregroundStyle(.orange)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 3)
+                                .background(.orange.opacity(0.1), in: Capsule())
+                        }
+                        Slider(value: Binding(
+                            get: { Double(currentFrameCount) },
+                            set: { newValue in
+                                if let duration = sourceDuration, duration > 0 {
+                                    settings.fps = max(0.5, newValue / duration)
+                                }
+                            }
+                        ), in: 1...Double(totalFrames), step: 1)
+                            .tint(.orange)
+                        HStack(spacing: 4) {
+                            Image(systemName: "speedometer")
                                 .font(.caption2)
                                 .foregroundStyle(.orange.opacity(0.8))
-                            Text("≈ \(estimatedFrames) frames extracted")
+                            Text("≈ \(String(format: "%.1f", settings.fps)) fps")
                                 .font(.caption2).fontWeight(.medium)
                                 .foregroundStyle(.orange.opacity(0.8))
                         }
+                    } else {
+                        // FPS fallback when no duration available
+                        HStack {
+                            Image(systemName: "speedometer")
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                                .frame(width: 20)
+                            Text("Extraction FPS")
+                                .font(.subheadline)
+                                .foregroundStyle(.white)
+                            Spacer()
+                            Text("\(settings.fps, specifier: "%.1f")")
+                                .font(.system(.caption, design: .monospaced))
+                                .foregroundStyle(.orange)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 3)
+                                .background(.orange.opacity(0.1), in: Capsule())
+                        }
+                        Slider(value: $settings.fps, in: 0.5...30, step: 0.5)
+                            .tint(.orange)
                     }
-                    Text(ReMapProcessingSettings.tooltip(for: "fps"))
+                    Text("Number of frames extracted from the video for reconstruction. More frames = more detail, slower processing.")
                         .font(.caption2)
                         .foregroundStyle(.secondary.opacity(0.6))
                 }
@@ -657,6 +704,8 @@ struct ReMapProcessingSettingsView: View {
                 }
                 .pickerStyle(.menu)
                 .tint(.cyan)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
             }
             if !tooltip.isEmpty {
                 Text(ReMapProcessingSettings.tooltip(for: tooltip))
@@ -684,6 +733,8 @@ struct ReMapProcessingSettingsView: View {
                 }
                 .pickerStyle(.menu)
                 .tint(color)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
             }
             if !tooltip.isEmpty {
                 Text(ReMapProcessingSettings.tooltip(for: tooltip))
