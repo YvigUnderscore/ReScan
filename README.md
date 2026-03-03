@@ -40,23 +40,8 @@ To make things **extremely easy and turnkey**, we provide automated installation
 
 ---
 
-### Method 1: Turnkey Installation (Windows & Linux)
-
-**For Windows Users:**
-We provide a 1-click PowerShell script that automatically downloads AltServer and opens the direct download links for its Apple dependencies.
-1. Right-click on `install_altstore.ps1` and select **Run with PowerShell**.
-2. The script will guide you to install iTunes and iCloud (direct versions, not Microsoft Store).
-3. It will automatically download, extract, and launch the AltServer installer.
-4. Once installed, launch AltServer, connect your iPhone, and use it to sideload the ReScan IPA!
-
-**For Linux Users:**
-We provide an automated bash script that installs all necessary dependencies (`usbmuxd`, `libimobiledevice`), downloads AltServer-Linux, and pairs your device.
-1. Open a terminal and run the script:
-   ```bash
-   chmod +x install_altstore.sh
-   ./install_altstore.sh
-   ```
-2. Follow the on-screen instructions. The script will find the IPA in the folder and can install it directly via USB, or start Server Mode for installation directly from your phone.
+### Best method: Turnkey Installation (Windows & Linux)
+Please look for SideStore, it is much easier that my previous attempt --> https://github.com/SideStore/SideStore
 
 ---
 
