@@ -394,6 +394,12 @@ struct CoverageMapOverlayView: View {
     private let minimumAxisSpan: Float = 0.001
     private let heatmapMinimumOpacity: Double = 0.12
     private let heatmapOpacityRange: Double = 0.78
+    // Keep mesh surface below full opacity so trajectory/current marker remain readable.
+    private let meshSurfaceMinimumOpacity: Double = 0.2
+    private let meshSurfaceOpacityRange: Double = 0.55
+    private let meshSurfaceGridScale: CGFloat = 0.75
+    private let meshSurfaceCellCornerRadiusRatio: CGFloat = 0.22
+    private let meshSurfaceMinimumGridSize: Int = 8
     
     let trajectory: [SIMD2<Float>]
     let meshPoints: [SIMD2<Float>]
@@ -415,17 +421,7 @@ struct CoverageMapOverlayView: View {
                 switch mode {
                 case .trajectoryMesh:
                     if !meshPoints.isEmpty {
-                        let mapped = meshPoints.map { mapPoint($0, bounds: bounds, size: size) }
-                        let meshDotSize = density.meshDotSize
-                        for point in mapped {
-                            let dotRect = CGRect(
-                                x: point.x - (meshDotSize / 2),
-                                y: point.y - (meshDotSize / 2),
-                                width: meshDotSize,
-                                height: meshDotSize
-                            )
-                            context.fill(Path(ellipseIn: dotRect), with: .color(.cyan.opacity(0.7)))
-                        }
+                        drawMeshSurface(context: context, size: size, bounds: bounds)
                     }
 
                     if trajectory.count >= 2 {
@@ -475,8 +471,8 @@ struct CoverageMapOverlayView: View {
             let normalizedY = (point.y - bounds.minY) / spanY
             let clampedX = max(0, min(0.999, normalizedX))
             let clampedY = max(0, min(0.999, normalizedY))
-            let x = Int(clampedX * Float(gridSize))
-            let y = Int(clampedY * Float(gridSize))
+            let x = min(gridSize - 1, Int(clampedX * Float(gridSize)))
+            let y = min(gridSize - 1, Int(clampedY * Float(gridSize)))
             let key = (y * gridSize) + x
             counts[key, default: 0] += 1
         }
@@ -497,6 +493,67 @@ struct CoverageMapOverlayView: View {
                 with: .color(Color.cyan.opacity(heatmapMinimumOpacity + (heatmapOpacityRange * intensity)))
             )
         }
+    }
+
+    private func drawMeshSurface(
+        context: GraphicsContext,
+        size: CGSize,
+        bounds: (minX: Float, maxX: Float, minY: Float, maxY: Float)
+    ) {
+        let scaledGridSize = Int(Double(density.heatmapGridSize) * Double(meshSurfaceGridScale))
+        let gridSize = max(meshSurfaceMinimumGridSize, scaledGridSize)
+        let spanX = max(minimumAxisSpan, bounds.maxX - bounds.minX)
+        let spanY = max(minimumAxisSpan, bounds.maxY - bounds.minY)
+        let cellW = size.width / CGFloat(gridSize)
+        let cellH = size.height / CGFloat(gridSize)
+        let cornerRadius = min(cellW, cellH) * meshSurfaceCellCornerRadiusRatio
+        var counts = Array(repeating: 0, count: gridSize * gridSize)
+        var maxCount = 1
+
+        for point in meshPoints {
+            let normalizedX = (point.x - bounds.minX) / spanX
+            let normalizedY = (point.y - bounds.minY) / spanY
+            // Clamp due to ARKit pose jitter at bounds edges that can otherwise
+            // create out-of-range indices when mapping into grid cells.
+            let clampedX = clampToGrid(normalizedX)
+            let clampedY = clampToGrid(normalizedY)
+            let x = Int(clampedX * Float(gridSize))
+            let y = Int(clampedY * Float(gridSize))
+            let cellIndex = (y * gridSize) + x
+            counts[cellIndex] += 1
+            maxCount = max(maxCount, counts[cellIndex])
+        }
+        
+        for y in 0..<gridSize {
+            for x in 0..<gridSize {
+                let cellIndex = (y * gridSize) + x
+                let count = counts[cellIndex]
+                guard count > 0 else { continue }
+
+                let intensity = CGFloat(count) / CGFloat(maxCount)
+                let rect = CGRect(
+                    x: CGFloat(x) * cellW,
+                    y: CGFloat(y) * cellH,
+                    width: cellW,
+                    height: cellH
+                )
+                let opacity = meshSurfaceOpacity(for: intensity)
+                context.fill(
+                    Path(roundedRect: rect, cornerRadius: cornerRadius),
+                    with: .color(Color.cyan.opacity(opacity))
+                )
+            }
+        }
+    }
+
+    private func clampToGrid(_ value: Float) -> Float {
+        // Normalized coordinates can hit 1.0 at exact bounds; indices are
+        // additionally clamped to `gridSize - 1` to avoid out-of-range access.
+        max(0, min(1.0, value))
+    }
+
+    private func meshSurfaceOpacity(for intensity: CGFloat) -> Double {
+        meshSurfaceMinimumOpacity + (meshSurfaceOpacityRange * intensity)
     }
     
     private func mapBounds(
