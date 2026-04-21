@@ -124,7 +124,10 @@ struct GlassSettingsSheet: View {
 
 struct ExposureControlsView: View {
     @Bindable var viewModel: CameraViewModel
-    private let exposureModes: [ExposureMode] = [.manual, .auto]
+    
+    private var exposureModes: [ExposureMode] {
+        ExposureMode.allCases.filter { $0 == .manual || $0 == .auto }
+    }
     
     var body: some View {
         GlassCard {
