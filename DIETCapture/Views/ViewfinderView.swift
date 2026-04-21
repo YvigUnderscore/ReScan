@@ -350,13 +350,15 @@ struct ViewfinderView: View {
             coveragePathPoints.append(current)
         }
         
-        // Cap to ~40 seconds of trajectory at a 30 Hz refresh cadence to keep memory
-        // bounded while still showing recent coverage context during capture.
+        // Cap trajectory history to keep memory bounded while preserving recent
+        // coverage context in the overlay during a recording.
         if coveragePathPoints.count > maxTrajectoryPoints {
             coveragePathPoints.removeFirst(coveragePathPoints.count - maxTrajectoryPoints)
         }
         
         meshUpdateTick += 1
+        // Refresh mesh points every 6 ticks (~5 Hz with the 30 Hz preview timer)
+        // to reduce overlay update cost while keeping coverage responsive.
         if meshUpdateTick % 6 == 0 {
             coverageMeshPoints = viewModel.lidar.meshAnchors.prefix(maxVisibleMeshAnchors).map { anchor in
                 let p = anchor.transform.columns.3
@@ -384,6 +386,8 @@ struct ViewfinderView: View {
 // MARK: - Depth Histogram Overlay
 
 struct CoverageMapOverlayView: View {
+    // Prevents divide-by-zero when bounds collapse (all points identical),
+    // and avoids extreme scale spikes for near-zero extents.
     private let minimumAxisSpan: Float = 0.001
     
     let trajectory: [SIMD2<Float>]
