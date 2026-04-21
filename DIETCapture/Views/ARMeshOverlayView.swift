@@ -78,7 +78,7 @@ struct ARMeshOverlayView: UIViewRepresentable {
                     view.scene.rootNode.addChildNode(cameraNode)
                 }
 
-                cameraNode.camera?.fieldOfView = max(20, min(110, fieldOfView))
+                cameraNode.camera?.fieldOfView = max(35, min(100, fieldOfView))
                 cameraNode.position = SCNVector3(0, 1.6, 2.4)
                 cameraNode.look(at: SCNVector3(0, 0, 0))
                 view.pointOfView = cameraNode
