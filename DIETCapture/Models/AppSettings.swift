@@ -69,6 +69,7 @@ final class AppSettings: ObservableObject {
     @AppStorage("defaultConfidence") var defaultConfidence: Int = 1 // Medium
     @AppStorage("defaultSmoothing") var defaultSmoothing: Bool = true
     @AppStorage("depthColorMap") var depthColorMap: DepthColorMap = .jet
+    @AppStorage("showRealtimeCoverageMap") var showRealtimeCoverageMap: Bool = false
     
     // MARK: - Adaptive Mesh Refinement
     

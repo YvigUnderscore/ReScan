@@ -4,8 +4,13 @@
 // Main capture screen: ARKit preview, pass viewer, collapsible controls, record button.
 
 import SwiftUI
+import simd
 
 struct ViewfinderView: View {
+    private let minPathStepDistance: Float = 0.03
+    private let maxTrajectoryPoints = 1_200
+    private let maxVisibleMeshAnchors = 400
+    
     @Bindable var viewModel: CaptureViewModel
     
     // Shared CIContext for efficient rendering
@@ -15,6 +20,16 @@ struct ViewfinderView: View {
     @State private var previewImage: UIImage?
     @State private var refreshTimer: Timer?
     @State private var depthHistogramBins: [Float] = []
+    @State private var coveragePathPoints: [SIMD2<Float>] = []
+    @State private var coverageMeshPoints: [SIMD2<Float>] = []
+    @State private var coverageCurrentPoint: SIMD2<Float>?
+    @State private var meshUpdateTick: Int = 0
+    
+    private var shouldShowCoverageMap: Bool {
+        AppSettings.shared.lidarEnabled &&
+        AppSettings.shared.showRealtimeCoverageMap &&
+        (viewModel.isRecording || viewModel.isWaitingForMesh)
+    }
     
     var body: some View {
         ZStack {
@@ -62,6 +77,13 @@ struct ViewfinderView: View {
                     // Pass viewer buttons (top-right)
                     VStack {
                         HStack {
+                            if shouldShowCoverageMap {
+                                CoverageMapOverlayView(
+                                    trajectory: coveragePathPoints,
+                                    meshPoints: coverageMeshPoints,
+                                    currentPoint: coverageCurrentPoint
+                                )
+                            }
                             Spacer()
                             passViewerButtons
                         }
@@ -297,6 +319,8 @@ struct ViewfinderView: View {
         } else if !depthHistogramBins.isEmpty {
             depthHistogramBins = []
         }
+        
+        updateCoverageMapData()
     }
     
     private func imageFromPixelBuffer(_ buffer: CVPixelBuffer, orientation: UIImage.Orientation = .right) -> UIImage? {
@@ -304,6 +328,51 @@ struct ViewfinderView: View {
         // Reuse shared CIContext to avoid expensive initialization
         guard let cgImage = Self.ciContext.createCGImage(ciImage, from: ciImage.extent) else { return nil }
         return UIImage(cgImage: cgImage, scale: 1.0, orientation: orientation)
+    }
+    
+    private func updateCoverageMapData() {
+        guard shouldShowCoverageMap else {
+            resetCoverageMap()
+            return
+        }
+        
+        let pose = viewModel.lidar.currentPose
+        let translation = pose.columns.3
+        let current = SIMD2<Float>(translation.x, translation.z)
+        
+        if let last = coveragePathPoints.last {
+            // Require ~3 cm movement before appending, which filters AR pose jitter
+            // while preserving enough path detail for a usable live coverage map.
+            if simd_distance(last, current) >= minPathStepDistance {
+                coveragePathPoints.append(current)
+            }
+        } else {
+            coveragePathPoints.append(current)
+        }
+        
+        // Cap trajectory history to keep memory bounded while preserving recent
+        // coverage context in the overlay during a recording.
+        if coveragePathPoints.count > maxTrajectoryPoints {
+            coveragePathPoints.removeFirst(coveragePathPoints.count - maxTrajectoryPoints)
+        }
+        
+        meshUpdateTick += 1
+        // Refresh mesh points every 6 ticks (~5 Hz with the 30 Hz preview timer)
+        // to reduce overlay update cost while keeping coverage responsive.
+        if meshUpdateTick % 6 == 0 {
+            coverageMeshPoints = viewModel.lidar.meshAnchors.prefix(maxVisibleMeshAnchors).map { anchor in
+                let p = anchor.transform.columns.3
+                return SIMD2<Float>(p.x, p.z)
+            }
+        }
+        coverageCurrentPoint = current
+    }
+    
+    private func resetCoverageMap() {
+        coveragePathPoints.removeAll(keepingCapacity: true)
+        coverageMeshPoints.removeAll(keepingCapacity: true)
+        coverageCurrentPoint = nil
+        meshUpdateTick = 0
     }
     
     // MARK: - Haptic
@@ -315,6 +384,112 @@ struct ViewfinderView: View {
 }
 
 // MARK: - Depth Histogram Overlay
+
+struct CoverageMapOverlayView: View {
+    // Prevents divide-by-zero when bounds collapse (all points identical),
+    // and avoids extreme scale spikes for near-zero extents.
+    private let minimumAxisSpan: Float = 0.001
+    
+    let trajectory: [SIMD2<Float>]
+    let meshPoints: [SIMD2<Float>]
+    let currentPoint: SIMD2<Float>?
+    
+    var body: some View {
+        let bounds = mapBounds(trajectory: trajectory, meshPoints: meshPoints, currentPoint: currentPoint)
+        
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Coverage")
+                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                .foregroundStyle(.white.opacity(0.9))
+            
+            Canvas { context, size in
+                guard let bounds else { return }
+                
+                if !meshPoints.isEmpty {
+                    let mapped = meshPoints.map { mapPoint($0, bounds: bounds, size: size) }
+                    for point in mapped {
+                        let dotRect = CGRect(x: point.x - 1.5, y: point.y - 1.5, width: 3, height: 3)
+                        context.fill(Path(ellipseIn: dotRect), with: .color(.cyan.opacity(0.65)))
+                    }
+                }
+                
+                if trajectory.count >= 2 {
+                    var path = Path()
+                    path.move(to: mapPoint(trajectory[0], bounds: bounds, size: size))
+                    for point in trajectory.dropFirst() {
+                        path.addLine(to: mapPoint(point, bounds: bounds, size: size))
+                    }
+                    context.stroke(path, with: .color(.green), lineWidth: 2)
+                }
+                
+                if let current = currentPoint {
+                    let mapped = mapPoint(current, bounds: bounds, size: size)
+                    let currentRect = CGRect(x: mapped.x - 3, y: mapped.y - 3, width: 6, height: 6)
+                    context.fill(Path(ellipseIn: currentRect), with: .color(.white))
+                }
+            }
+            .frame(width: 110, height: 110)
+            .background(Color.black.opacity(0.35), in: RoundedRectangle(cornerRadius: 10))
+        }
+        .padding(8)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
+    }
+    
+    private func mapBounds(
+        trajectory: [SIMD2<Float>],
+        meshPoints: [SIMD2<Float>],
+        currentPoint: SIMD2<Float>?
+    ) -> (minX: Float, maxX: Float, minY: Float, maxY: Float)? {
+        let firstPoint = trajectory.first ?? meshPoints.first ?? currentPoint
+        guard let first = firstPoint else { return nil }
+        
+        var minX = first.x
+        var maxX = first.x
+        var minY = first.y
+        var maxY = first.y
+        
+        for point in trajectory {
+            minX = min(minX, point.x)
+            maxX = max(maxX, point.x)
+            minY = min(minY, point.y)
+            maxY = max(maxY, point.y)
+        }
+        for point in meshPoints {
+            minX = min(minX, point.x)
+            maxX = max(maxX, point.x)
+            minY = min(minY, point.y)
+            maxY = max(maxY, point.y)
+        }
+        if let point = currentPoint {
+            minX = min(minX, point.x)
+            maxX = max(maxX, point.x)
+            minY = min(minY, point.y)
+            maxY = max(maxY, point.y)
+        }
+        return (minX, maxX, minY, maxY)
+    }
+    
+    private func mapPoint(
+        _ point: SIMD2<Float>,
+        bounds: (minX: Float, maxX: Float, minY: Float, maxY: Float),
+        size: CGSize
+    ) -> CGPoint {
+        let padding: CGFloat = 8
+        let spanX = max(minimumAxisSpan, bounds.maxX - bounds.minX)
+        let spanY = max(minimumAxisSpan, bounds.maxY - bounds.minY)
+        let scaleX = (size.width - 2 * padding) / CGFloat(spanX)
+        let scaleY = (size.height - 2 * padding) / CGFloat(spanY)
+        let scale = min(scaleX, scaleY)
+        
+        let centerX = (bounds.minX + bounds.maxX) * 0.5
+        let centerY = (bounds.minY + bounds.maxY) * 0.5
+        
+        let x = CGFloat(point.x - centerX) * scale + size.width * 0.5
+        let y = CGFloat(point.y - centerY) * scale + size.height * 0.5
+        
+        return CGPoint(x: x, y: y)
+    }
+}
 
 struct DepthHistogramView: View {
     let bins: [Float]
