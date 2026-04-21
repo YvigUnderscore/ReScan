@@ -246,6 +246,28 @@ struct SettingsView: View {
                     
                     rowDivider
                     
+                    // Realtime Coverage Map
+                    HStack {
+                        Image(systemName: "map.fill")
+                            .font(.caption)
+                            .foregroundStyle(.green)
+                            .frame(width: 20)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Realtime Coverage Map")
+                                .font(.subheadline)
+                                .foregroundStyle(.white)
+                            Text("Shows a live top-down map during capture to monitor scanned coverage.")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary.opacity(0.6))
+                        }
+                        Spacer()
+                        Toggle("", isOn: $settings.showRealtimeCoverageMap)
+                            .tint(.green)
+                            .labelsHidden()
+                    }
+                    
+                    rowDivider
+                    
                     // Depth Color Map
                     HStack {
                         Image(systemName: "paintpalette")
