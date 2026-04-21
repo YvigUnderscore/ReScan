@@ -113,9 +113,7 @@ extension ClosedRange where Bound == Float {
     func normalize(_ value: Float) -> Float {
         let span = upperBound - lowerBound
         guard span > 0 else {
-            if value < lowerBound { return 0 }
-            if value > upperBound { return 1 }
-            return 0.5
+            return value <= lowerBound ? 0 : 1
         }
         let normalized = (value - lowerBound) / span
         return max(0, min(normalized, 1))
