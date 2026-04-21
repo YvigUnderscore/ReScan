@@ -113,8 +113,8 @@ extension ClosedRange where Bound == Float {
     func normalize(_ value: Float) -> Float {
         let span = upperBound - lowerBound
         guard span > 0 else {
-            // Degenerate range: map values at/below bound to 0, above bound to 1.
-            return value <= lowerBound ? 0 : 1
+            // Degenerate range: there is only one valid value.
+            return 0
         }
         let normalized = (value - lowerBound) / span
         return max(0, min(normalized, 1))

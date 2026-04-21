@@ -168,6 +168,8 @@ final class CameraViewModel {
     }
     
     private func syncSliderValuesFromSettings() {
+        settings.iso = isoRange.clamp(settings.iso)
+        settings.exposureCompensation = evRange.clamp(settings.exposureCompensation)
         isoSliderValue = isoRange.normalize(settings.iso)
         evSliderValue = evRange.normalize(settings.exposureCompensation)
         focusSliderValue = Self.unitRange.clamp(settings.manualFocusPosition)
