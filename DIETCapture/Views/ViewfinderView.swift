@@ -400,6 +400,7 @@ struct CoverageMapOverlayView: View {
     private let meshSurfaceGridScale: CGFloat = 0.75
     private let meshSurfaceCellCornerRadiusRatio: CGFloat = 0.22
     private let meshSurfaceMinimumGridSize: Int = 8
+    private let gridNormalizationCeiling: Float = 1.0
     
     let trajectory: [SIMD2<Float>]
     let meshPoints: [SIMD2<Float>]
@@ -548,7 +549,7 @@ struct CoverageMapOverlayView: View {
 
     private func clampToGrid(_ value: Float) -> Float {
         // Use nextDown(1.0) so exact-bound values stay inside the final grid cell.
-        max(0, min(Float(1).nextDown, value))
+        max(0, min(gridNormalizationCeiling.nextDown, value))
     }
 
     private func meshSurfaceOpacity(for intensity: CGFloat) -> Double {
