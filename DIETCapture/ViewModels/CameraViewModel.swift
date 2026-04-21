@@ -9,6 +9,7 @@ import CoreMedia
 
 @Observable
 final class CameraViewModel {
+    private static let unitRange: ClosedRange<Float> = 0...1
     
     // MARK: - Services
     
@@ -100,7 +101,7 @@ final class CameraViewModel {
     }
     
     func updateISO(sliderValue: Float) {
-        isoSliderValue = clampUnit(sliderValue)
+        isoSliderValue = Self.unitRange.denormalize(sliderValue)
         let iso = isoRange.denormalize(isoSliderValue)
         settings.iso = iso
         
@@ -113,7 +114,7 @@ final class CameraViewModel {
     }
     
     func updateEV(sliderValue: Float) {
-        evSliderValue = clampUnit(sliderValue)
+        evSliderValue = Self.unitRange.denormalize(sliderValue)
         let ev = evRange.denormalize(evSliderValue)
         settings.exposureCompensation = ev
         cameraService.setExposureCompensation(ev)
@@ -127,7 +128,7 @@ final class CameraViewModel {
     }
     
     func updateFocus(sliderValue: Float) {
-        focusSliderValue = clampUnit(sliderValue)
+        focusSliderValue = Self.unitRange.denormalize(sliderValue)
         settings.manualFocusPosition = focusSliderValue
         if settings.focusMode == .manual {
             cameraService.setFocusMode(.manual, lensPosition: focusSliderValue)
@@ -169,11 +170,7 @@ final class CameraViewModel {
     private func syncSliderValuesFromSettings() {
         isoSliderValue = isoRange.normalize(settings.iso)
         evSliderValue = evRange.normalize(settings.exposureCompensation)
-        focusSliderValue = clampUnit(settings.manualFocusPosition)
-    }
-    
-    private func clampUnit(_ value: Float) -> Float {
-        max(0, min(value, 1))
+        focusSliderValue = Self.unitRange.denormalize(settings.manualFocusPosition)
     }
 }
 
