@@ -124,6 +124,7 @@ struct GlassSettingsSheet: View {
 
 struct ExposureControlsView: View {
     @Bindable var viewModel: CameraViewModel
+    private let exposureModes: [ExposureMode] = [.manual, .auto]
     
     var body: some View {
         GlassCard {
@@ -135,7 +136,7 @@ struct ExposureControlsView: View {
                         .foregroundStyle(.secondary)
                     Spacer()
                     HStack(spacing: 4) {
-                        ForEach(ExposureMode.allCases) { mode in
+                        ForEach(exposureModes, id: \.self) { mode in
                             GlassPill(
                                 label: mode.rawValue,
                                 isSelected: viewModel.settings.exposureMode == mode
@@ -197,8 +198,90 @@ struct ExposureControlsView: View {
                     displayValue: viewModel.evDisplay,
                     isEnabled: true // EV compensation works in all modes
                 )
+                
+                // Color Correction (White Balance)
+                HStack {
+                    Label("Color", systemImage: "eyedropper.halffull")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    HStack(spacing: 4) {
+                        ForEach(WhiteBalanceMode.allCases) { mode in
+                            GlassPill(
+                                label: mode.rawValue,
+                                isSelected: viewModel.settings.whiteBalanceMode == mode
+                            ) {
+                                viewModel.setWhiteBalanceMode(mode)
+                            }
+                        }
+                    }
+                }
+                
+                if viewModel.settings.whiteBalanceMode == .manual {
+                    GlassSlider(
+                        label: "WB Temp",
+                        icon: "thermometer.medium",
+                        value: Binding(
+                            get: {
+                                normalized(
+                                    viewModel.settings.whiteBalance.temperature,
+                                    in: WhiteBalanceValues.temperatureRange
+                                )
+                            },
+                            set: { sliderValue in
+                                let newTemperature = denormalized(
+                                    sliderValue,
+                                    in: WhiteBalanceValues.temperatureRange
+                                )
+                                viewModel.updateWhiteBalance(
+                                    temperature: newTemperature,
+                                    tint: viewModel.settings.whiteBalance.tint
+                                )
+                            }
+                        ),
+                        displayValue: "\(Int(viewModel.settings.whiteBalance.temperature))K",
+                        isEnabled: true
+                    )
+                    
+                    GlassSlider(
+                        label: "WB Tint",
+                        icon: "paintpalette",
+                        value: Binding(
+                            get: {
+                                normalized(
+                                    viewModel.settings.whiteBalance.tint,
+                                    in: WhiteBalanceValues.tintRange
+                                )
+                            },
+                            set: { sliderValue in
+                                let newTint = denormalized(
+                                    sliderValue,
+                                    in: WhiteBalanceValues.tintRange
+                                )
+                                viewModel.updateWhiteBalance(
+                                    temperature: viewModel.settings.whiteBalance.temperature,
+                                    tint: newTint
+                                )
+                            }
+                        ),
+                        displayValue: viewModel.settings.whiteBalance.tint.formatted(decimals: 0),
+                        isEnabled: true
+                    )
+                }
             }
         }
+    }
+    
+    private func normalized(_ value: Float, in range: ClosedRange<Float>) -> Float {
+        let span = range.upperBound - range.lowerBound
+        guard span > 0 else { return 0 }
+        let result = (value - range.lowerBound) / span
+        return max(0, min(result, 1))
+    }
+    
+    private func denormalized(_ value: Float, in range: ClosedRange<Float>) -> Float {
+        let clamped = max(0, min(value, 1))
+        return range.lowerBound + clamped * (range.upperBound - range.lowerBound)
     }
 }
 

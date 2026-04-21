@@ -65,6 +65,8 @@ final class CameraViewModel {
     
     func setup(device: AVCaptureDevice?) {
         cameraService.attachToDevice(device)
+        syncSliderValuesFromSettings()
+        applyCurrentSettings()
     }
     
     func teardown() {
@@ -75,7 +77,14 @@ final class CameraViewModel {
     
     func setExposureMode(_ mode: ExposureMode) {
         settings.exposureMode = mode
-        cameraService.setExposureMode(mode)
+        if mode == .manual {
+            cameraService.setManualExposure(
+                shutterSpeed: settings.shutterSpeed,
+                iso: settings.iso
+            )
+        } else {
+            cameraService.setExposureMode(mode)
+        }
     }
     
     func setShutterPreset(_ preset: ShutterSpeedPreset) {
@@ -91,9 +100,9 @@ final class CameraViewModel {
     }
     
     func updateISO(sliderValue: Float) {
-        isoSliderValue = sliderValue
+        isoSliderValue = max(0, min(sliderValue, 1))
         let range = isoRange
-        let iso = range.lowerBound + sliderValue * (range.upperBound - range.lowerBound)
+        let iso = max(range.lowerBound, min(range.lowerBound + isoSliderValue * (range.upperBound - range.lowerBound), range.upperBound))
         settings.iso = iso
         
         if settings.exposureMode == .manual {
@@ -105,9 +114,9 @@ final class CameraViewModel {
     }
     
     func updateEV(sliderValue: Float) {
-        evSliderValue = sliderValue
+        evSliderValue = max(0, min(sliderValue, 1))
         let range = evRange
-        let ev = range.lowerBound + sliderValue * (range.upperBound - range.lowerBound)
+        let ev = max(range.lowerBound, min(range.lowerBound + evSliderValue * (range.upperBound - range.lowerBound), range.upperBound))
         settings.exposureCompensation = ev
         cameraService.setExposureCompensation(ev)
     }
@@ -148,6 +157,28 @@ final class CameraViewModel {
         if settings.whiteBalanceMode == .manual {
             cameraService.setManualWhiteBalance(temperature: temperature, tint: tint)
         }
+    }
+    
+    // MARK: - Apply Defaults
+    
+    private func applyCurrentSettings() {
+        setExposureMode(settings.exposureMode)
+        cameraService.setExposureCompensation(settings.exposureCompensation)
+        setFocusMode(settings.focusMode)
+        setWhiteBalanceMode(settings.whiteBalanceMode)
+    }
+    
+    private func syncSliderValuesFromSettings() {
+        isoSliderValue = normalized(settings.iso, in: isoRange)
+        evSliderValue = normalized(settings.exposureCompensation, in: evRange)
+        focusSliderValue = max(0, min(settings.manualFocusPosition, 1))
+    }
+    
+    private func normalized(_ value: Float, in range: ClosedRange<Float>) -> Float {
+        let span = range.upperBound - range.lowerBound
+        guard span > 0 else { return 0 }
+        let normalized = (value - range.lowerBound) / span
+        return max(0, min(normalized, 1))
     }
 }
 

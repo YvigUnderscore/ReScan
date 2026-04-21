@@ -188,7 +188,7 @@ struct ShutterSpeedPreset: Identifiable {
 // MARK: - Camera Settings
 
 struct CameraSettings {
-    var exposureMode: ExposureMode = .auto
+    var exposureMode: ExposureMode = .manual
     var shutterSpeed: CMTime = CMTimeMake(value: 1, timescale: 60)
     var iso: Float = 100.0
     var exposureCompensation: Float = 0.0
