@@ -11,7 +11,7 @@ jobs:
   build:
     runs-on: macos-latest
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
 
     - name: Install XcodeGen
       run: brew install xcodegen
@@ -39,7 +39,7 @@ jobs:
         zip -r ReScan.ipa Payload/
 
     - name: Upload IPA
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: ReScan-IPA
         path: ReScan.ipa
