@@ -26,7 +26,12 @@ enum ExposureMode: String, CaseIterable, Identifiable {
     }
     
     var isUserSelectable: Bool {
-        self == .manual || self == .auto
+        switch self {
+        case .auto, .manual:
+            return true
+        case .locked:
+            return false
+        }
     }
 }
 
