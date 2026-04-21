@@ -394,12 +394,14 @@ struct CoverageMapOverlayView: View {
     private let minimumAxisSpan: Float = 0.001
     private let heatmapMinimumOpacity: Double = 0.12
     private let heatmapOpacityRange: Double = 0.78
-    // Keep mesh surface below full opacity so trajectory/current marker remain readable.
-    private let meshSurfaceMinimumOpacity: Double = 0.2
-    private let meshSurfaceOpacityRange: Double = 0.55
-    private let meshSurfaceGridScale: CGFloat = 0.75
-    private let meshSurfaceCellCornerRadiusRatio: CGFloat = 0.22
-    private let meshSurfaceMinimumGridSize: Int = 8
+    private let trailMinimumOpacity: Double = 0.2
+    private let trailOpacityRange: Double = 0.75
+    private let trailMinimumLineWidth: CGFloat = 1.6
+    private let trailLineWidthRange: CGFloat = 2.8
+    private let directionArrowLength: CGFloat = 12
+    private let directionArrowHalfWidth: CGFloat = 4.5
+    private let currentPointOuterRadius: CGFloat = 8
+    private let currentPointInnerRadius: CGFloat = 4
     
     let trajectory: [SIMD2<Float>]
     let meshPoints: [SIMD2<Float>]
@@ -419,25 +421,8 @@ struct CoverageMapOverlayView: View {
                 guard let bounds else { return }
 
                 switch mode {
-                case .trajectoryMesh:
-                    if !meshPoints.isEmpty {
-                        drawMeshSurface(context: context, size: size, bounds: bounds)
-                    }
-
-                    if trajectory.count >= 2 {
-                        var path = Path()
-                        path.move(to: mapPoint(trajectory[0], bounds: bounds, size: size))
-                        for point in trajectory.dropFirst() {
-                            path.addLine(to: mapPoint(point, bounds: bounds, size: size))
-                        }
-                        context.stroke(path, with: .color(.green), lineWidth: 2)
-                    }
-
-                    if let current = currentPoint {
-                        let mapped = mapPoint(current, bounds: bounds, size: size)
-                        let currentRect = CGRect(x: mapped.x - 3, y: mapped.y - 3, width: 6, height: 6)
-                        context.fill(Path(ellipseIn: currentRect), with: .color(.white))
-                    }
+                case .scanTrail:
+                    drawScanTrail(context: context, size: size, bounds: bounds)
 
                 case .gridHeatmap:
                     drawGridHeatmap(context: context, size: size, bounds: bounds)
@@ -495,65 +480,66 @@ struct CoverageMapOverlayView: View {
         }
     }
 
-    private func drawMeshSurface(
+    private func drawScanTrail(
         context: GraphicsContext,
         size: CGSize,
         bounds: (minX: Float, maxX: Float, minY: Float, maxY: Float)
     ) {
-        let scaledGridSize = Int(Double(density.heatmapGridSize) * Double(meshSurfaceGridScale))
-        let gridSize = max(meshSurfaceMinimumGridSize, scaledGridSize)
-        let spanX = max(minimumAxisSpan, bounds.maxX - bounds.minX)
-        let spanY = max(minimumAxisSpan, bounds.maxY - bounds.minY)
-        let cellW = size.width / CGFloat(gridSize)
-        let cellH = size.height / CGFloat(gridSize)
-        let cornerRadius = min(cellW, cellH) * meshSurfaceCellCornerRadiusRatio
-        var counts = Array(repeating: 0, count: gridSize * gridSize)
-        var maxCount = 1
+        if trajectory.count >= 2 {
+            let segmentCount = max(1, trajectory.count - 1)
+            for i in 0..<segmentCount {
+                var path = Path()
+                let start = mapPoint(trajectory[i], bounds: bounds, size: size)
+                let end = mapPoint(trajectory[i + 1], bounds: bounds, size: size)
+                path.move(to: start)
+                path.addLine(to: end)
 
-        for point in meshPoints {
-            let normalizedX = (point.x - bounds.minX) / spanX
-            let normalizedY = (point.y - bounds.minY) / spanY
-            // Clamp due to ARKit pose jitter at bounds edges that can otherwise
-            // create out-of-range indices when mapping into grid cells.
-            let clampedX = clampToGrid(normalizedX)
-            let clampedY = clampToGrid(normalizedY)
-            let x = Int(clampedX * Float(gridSize))
-            let y = Int(clampedY * Float(gridSize))
-            let cellIndex = (y * gridSize) + x
-            counts[cellIndex] += 1
-            maxCount = max(maxCount, counts[cellIndex])
-        }
-        
-        for y in 0..<gridSize {
-            for x in 0..<gridSize {
-                let cellIndex = (y * gridSize) + x
-                let count = counts[cellIndex]
-                guard count > 0 else { continue }
-
-                let intensity = CGFloat(count) / CGFloat(maxCount)
-                let rect = CGRect(
-                    x: CGFloat(x) * cellW,
-                    y: CGFloat(y) * cellH,
-                    width: cellW,
-                    height: cellH
-                )
-                let opacity = meshSurfaceOpacity(for: intensity)
-                context.fill(
-                    Path(roundedRect: rect, cornerRadius: cornerRadius),
-                    with: .color(Color.cyan.opacity(opacity))
-                )
+                let t = CGFloat(i + 1) / CGFloat(segmentCount)
+                let opacity = trailMinimumOpacity + (trailOpacityRange * t)
+                let lineWidth = trailMinimumLineWidth + (trailLineWidthRange * t)
+                context.stroke(path, with: .color(Color.cyan.opacity(opacity)), lineWidth: lineWidth)
             }
         }
-    }
 
-    private func clampToGrid(_ value: Float) -> Float {
-        // Normalized coordinates can hit 1.0 at exact bounds; indices are
-        // additionally clamped to `gridSize - 1` to avoid out-of-range access.
-        max(0, min(1.0, value))
-    }
+        if trajectory.count >= 2 {
+            let previous = mapPoint(trajectory[trajectory.count - 2], bounds: bounds, size: size)
+            let latest = mapPoint(trajectory[trajectory.count - 1], bounds: bounds, size: size)
+            let vector = CGPoint(x: latest.x - previous.x, y: latest.y - previous.y)
+            let length = max(0.001, sqrt((vector.x * vector.x) + (vector.y * vector.y)))
 
-    private func meshSurfaceOpacity(for intensity: CGFloat) -> Double {
-        meshSurfaceMinimumOpacity + (meshSurfaceOpacityRange * intensity)
+            if length > 1 {
+                let dir = CGPoint(x: vector.x / length, y: vector.y / length)
+                let perp = CGPoint(x: -dir.y, y: dir.x)
+                let base = CGPoint(x: latest.x - dir.x * directionArrowLength, y: latest.y - dir.y * directionArrowLength)
+                let left = CGPoint(x: base.x + perp.x * directionArrowHalfWidth, y: base.y + perp.y * directionArrowHalfWidth)
+                let right = CGPoint(x: base.x - perp.x * directionArrowHalfWidth, y: base.y - perp.y * directionArrowHalfWidth)
+
+                var arrowPath = Path()
+                arrowPath.move(to: latest)
+                arrowPath.addLine(to: left)
+                arrowPath.addLine(to: right)
+                arrowPath.closeSubpath()
+                context.fill(arrowPath, with: .color(.mint.opacity(0.95)))
+            }
+        }
+
+        if let current = currentPoint {
+            let mapped = mapPoint(current, bounds: bounds, size: size)
+            let outerRect = CGRect(
+                x: mapped.x - currentPointOuterRadius,
+                y: mapped.y - currentPointOuterRadius,
+                width: currentPointOuterRadius * 2,
+                height: currentPointOuterRadius * 2
+            )
+            let innerRect = CGRect(
+                x: mapped.x - currentPointInnerRadius,
+                y: mapped.y - currentPointInnerRadius,
+                width: currentPointInnerRadius * 2,
+                height: currentPointInnerRadius * 2
+            )
+            context.fill(Path(ellipseIn: outerRect), with: .color(.white.opacity(0.25)))
+            context.fill(Path(ellipseIn: innerRect), with: .color(.white))
+        }
     }
     
     private func mapBounds(
