@@ -9,6 +9,7 @@ import simd
 struct ViewfinderView: View {
     private let minPathStepDistance: Float = 0.03
     private let maxTrajectoryPoints = 1_200
+    private let maxVisibleMeshAnchors = 400
     
     @Bindable var viewModel: CaptureViewModel
     
@@ -357,7 +358,7 @@ struct ViewfinderView: View {
         
         meshUpdateTick += 1
         if meshUpdateTick % 6 == 0 {
-            coverageMeshPoints = viewModel.lidar.meshAnchors.prefix(400).map { anchor in
+            coverageMeshPoints = viewModel.lidar.meshAnchors.prefix(maxVisibleMeshAnchors).map { anchor in
                 let p = anchor.transform.columns.3
                 return SIMD2<Float>(p.x, p.z)
             }
@@ -383,7 +384,7 @@ struct ViewfinderView: View {
 // MARK: - Depth Histogram Overlay
 
 struct CoverageMapOverlayView: View {
-    private let minMapSpan: Float = 0.001
+    private let minimumAxisSpan: Float = 0.001
     
     let trajectory: [SIMD2<Float>]
     let meshPoints: [SIMD2<Float>]
@@ -470,8 +471,8 @@ struct CoverageMapOverlayView: View {
         size: CGSize
     ) -> CGPoint {
         let padding: CGFloat = 8
-        let spanX = max(minMapSpan, bounds.maxX - bounds.minX)
-        let spanY = max(minMapSpan, bounds.maxY - bounds.minY)
+        let spanX = max(minimumAxisSpan, bounds.maxX - bounds.minX)
+        let spanY = max(minimumAxisSpan, bounds.maxY - bounds.minY)
         let scaleX = (size.width - 2 * padding) / CGFloat(spanX)
         let scaleY = (size.height - 2 * padding) / CGFloat(spanY)
         let scale = min(scaleX, scaleY)
