@@ -22,7 +22,7 @@ struct ViewfinderView: View {
     @State private var coveragePathPoints: [SIMD2<Float>] = []
     @State private var coverageMeshPoints: [SIMD2<Float>] = []
     @State private var coverageCurrentPoint: SIMD2<Float>?
-    @State private var meshAnchorSignature: Int = 0
+    @State private var meshUpdateTick: Int = 0
     
     private var shouldShowCoverageMap: Bool {
         AppSettings.shared.lidarEnabled &&
@@ -355,27 +355,21 @@ struct ViewfinderView: View {
             coveragePathPoints.removeFirst(coveragePathPoints.count - maxTrajectoryPoints)
         }
         
-        let anchors = viewModel.lidar.meshAnchors
-        let newSignature = anchors
-            .map { $0.identifier.uuidString }
-            .sorted()
-            .joined(separator: "|")
-            .hashValue
-        if newSignature != meshAnchorSignature || anchors.count != coverageMeshPoints.count {
-            coverageMeshPoints = anchors.map { anchor in
+        meshUpdateTick += 1
+        if meshUpdateTick % 6 == 0 {
+            coverageMeshPoints = viewModel.lidar.meshAnchors.map { anchor in
                 let p = anchor.transform.columns.3
                 return SIMD2<Float>(p.x, p.z)
             }
-            meshAnchorSignature = newSignature
         }
         coverageCurrentPoint = current
     }
     
     private func resetCoverageMap() {
-        if !coveragePathPoints.isEmpty { coveragePathPoints.removeAll(keepingCapacity: true) }
-        if !coverageMeshPoints.isEmpty { coverageMeshPoints.removeAll(keepingCapacity: true) }
+        coveragePathPoints.removeAll(keepingCapacity: true)
+        coverageMeshPoints.removeAll(keepingCapacity: true)
         coverageCurrentPoint = nil
-        meshAnchorSignature = 0
+        meshUpdateTick = 0
     }
     
     // MARK: - Haptic
