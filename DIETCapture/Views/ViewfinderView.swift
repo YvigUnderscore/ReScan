@@ -336,6 +336,7 @@ struct ViewfinderView: View {
         let current = SIMD2<Float>(translation.x, translation.z)
         
         if let last = coveragePathPoints.last {
+            // Minimum movement in meters before appending a new path point (reduces jitter/noise).
             let minStep: Float = 0.03
             if simd_distance(last, current) >= minStep {
                 coveragePathPoints.append(current)
@@ -344,6 +345,7 @@ struct ViewfinderView: View {
             coveragePathPoints.append(current)
         }
         
+        // Keep the trajectory buffer bounded to avoid unbounded memory growth on long captures.
         let maxPathPoints = 1_200
         if coveragePathPoints.count > maxPathPoints {
             coveragePathPoints.removeFirst(coveragePathPoints.count - maxPathPoints)
