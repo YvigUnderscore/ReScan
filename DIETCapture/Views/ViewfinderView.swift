@@ -357,7 +357,7 @@ struct ViewfinderView: View {
         
         meshUpdateTick += 1
         if meshUpdateTick % 6 == 0 {
-            coverageMeshPoints = viewModel.lidar.meshAnchors.map { anchor in
+            coverageMeshPoints = viewModel.lidar.meshAnchors.prefix(400).map { anchor in
                 let p = anchor.transform.columns.3
                 return SIMD2<Float>(p.x, p.z)
             }
@@ -390,8 +390,7 @@ struct CoverageMapOverlayView: View {
     let currentPoint: SIMD2<Float>?
     
     var body: some View {
-        let allPoints = trajectory + meshPoints + (currentPoint.map { [$0] } ?? [])
-        let bounds = mapBounds(for: allPoints)
+        let bounds = mapBounds(trajectory: trajectory, meshPoints: meshPoints, currentPoint: currentPoint)
         
         VStack(alignment: .leading, spacing: 6) {
             Text("Coverage")
@@ -431,13 +430,32 @@ struct CoverageMapOverlayView: View {
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
     }
     
-    private func mapBounds(for points: [SIMD2<Float>]) -> (minX: Float, maxX: Float, minY: Float, maxY: Float)? {
-        guard !points.isEmpty else { return nil }
-        var minX = points[0].x
-        var maxX = points[0].x
-        var minY = points[0].y
-        var maxY = points[0].y
-        for point in points.dropFirst() {
+    private func mapBounds(
+        trajectory: [SIMD2<Float>],
+        meshPoints: [SIMD2<Float>],
+        currentPoint: SIMD2<Float>?
+    ) -> (minX: Float, maxX: Float, minY: Float, maxY: Float)? {
+        let firstPoint = trajectory.first ?? meshPoints.first ?? currentPoint
+        guard let first = firstPoint else { return nil }
+        
+        var minX = first.x
+        var maxX = first.x
+        var minY = first.y
+        var maxY = first.y
+        
+        for point in trajectory {
+            minX = min(minX, point.x)
+            maxX = max(maxX, point.x)
+            minY = min(minY, point.y)
+            maxY = max(maxY, point.y)
+        }
+        for point in meshPoints {
+            minX = min(minX, point.x)
+            maxX = max(maxX, point.x)
+            minY = min(minY, point.y)
+            maxY = max(maxY, point.y)
+        }
+        if let point = currentPoint {
             minX = min(minX, point.x)
             maxX = max(maxX, point.x)
             minY = min(minY, point.y)
