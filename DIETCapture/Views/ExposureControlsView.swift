@@ -126,7 +126,7 @@ struct ExposureControlsView: View {
     @Bindable var viewModel: CameraViewModel
     
     private var exposureModes: [ExposureMode] {
-        ExposureMode.allCases.filter { $0 == .manual || $0 == .auto }
+        ExposureMode.allCases.filter(\.isUserSelectable)
     }
     
     var body: some View {

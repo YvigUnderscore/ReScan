@@ -66,8 +66,8 @@ final class CameraViewModel {
     
     func setup(device: AVCaptureDevice?) {
         cameraService.attachToDevice(device)
-        syncSliderValuesFromSettings()
         applyCurrentSettings()
+        syncSliderValuesFromSettings()
     }
     
     func teardown() {

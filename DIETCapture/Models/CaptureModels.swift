@@ -24,6 +24,10 @@ enum ExposureMode: String, CaseIterable, Identifiable {
         case .locked: return .locked
         }
     }
+    
+    var isUserSelectable: Bool {
+        self == .manual || self == .auto
+    }
 }
 
 // MARK: - Focus
