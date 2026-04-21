@@ -5,6 +5,7 @@
 
 import SwiftUI
 import simd
+import ARKit
 
 struct ViewfinderView: View {
     @Bindable var viewModel: CaptureViewModel
@@ -78,13 +79,16 @@ struct ViewfinderView: View {
                     VStack {
                         HStack {
                             if shouldShowCoverageMap {
-                                CoverageMapOverlayView(
-                                    trajectory: coveragePathPoints,
-                                    meshPoints: coverageMeshPoints,
-                                    currentPoint: coverageCurrentPoint,
-                                    mode: AppSettings.shared.coverageMapMode,
-                                    density: coverageDensity
-                                )
+                                if AppSettings.shared.coverageMapMode == .threeDVisualization {
+                                    CoverageMeshPreviewOverlayView(session: viewModel.lidar.arService.arSession)
+                                } else {
+                                    CoverageMapOverlayView(
+                                        trajectory: coveragePathPoints,
+                                        meshPoints: coverageMeshPoints,
+                                        currentPoint: coverageCurrentPoint,
+                                        density: coverageDensity
+                                    )
+                                }
                             }
                             Spacer()
                             passViewerButtons
@@ -394,19 +398,10 @@ struct CoverageMapOverlayView: View {
     private let minimumAxisSpan: Float = 0.001
     private let heatmapMinimumOpacity: Double = 0.12
     private let heatmapOpacityRange: Double = 0.78
-    private let trailMinimumOpacity: Double = 0.2
-    private let trailOpacityRange: Double = 0.75
-    private let trailMinimumLineWidth: CGFloat = 1.6
-    private let trailLineWidthRange: CGFloat = 2.8
-    private let directionArrowLength: CGFloat = 12
-    private let directionArrowHalfWidth: CGFloat = 4.5
-    private let currentPointOuterRadius: CGFloat = 8
-    private let currentPointInnerRadius: CGFloat = 4
     
     let trajectory: [SIMD2<Float>]
     let meshPoints: [SIMD2<Float>]
     let currentPoint: SIMD2<Float>?
-    let mode: AppSettings.CoverageMapMode
     let density: AppSettings.CoverageMapDensity
     
     var body: some View {
@@ -419,14 +414,7 @@ struct CoverageMapOverlayView: View {
             
             Canvas { context, size in
                 guard let bounds else { return }
-
-                switch mode {
-                case .scanTrail:
-                    drawScanTrail(context: context, size: size, bounds: bounds)
-
-                case .gridHeatmap:
-                    drawGridHeatmap(context: context, size: size, bounds: bounds)
-                }
+                drawGridHeatmap(context: context, size: size, bounds: bounds)
             }
             .frame(width: 110, height: 110)
             .background(Color.black.opacity(0.35), in: RoundedRectangle(cornerRadius: 10))
@@ -480,71 +468,6 @@ struct CoverageMapOverlayView: View {
         }
     }
 
-    private func drawScanTrail(
-        context: GraphicsContext,
-        size: CGSize,
-        bounds: (minX: Float, maxX: Float, minY: Float, maxY: Float)
-    ) {
-        var latestSegment: (previous: CGPoint, latest: CGPoint)?
-
-        if trajectory.count >= 2 {
-            let segmentCount = max(1, trajectory.count - 1)
-            for i in 0..<segmentCount {
-                var path = Path()
-                let start = mapPoint(trajectory[i], bounds: bounds, size: size)
-                let end = mapPoint(trajectory[i + 1], bounds: bounds, size: size)
-                path.move(to: start)
-                path.addLine(to: end)
-                latestSegment = (previous: start, latest: end)
-
-                let t = CGFloat(i + 1) / CGFloat(segmentCount)
-                let opacity = trailMinimumOpacity + (trailOpacityRange * t)
-                let lineWidth = trailMinimumLineWidth + (trailLineWidthRange * t)
-                context.stroke(path, with: .color(Color.cyan.opacity(opacity)), lineWidth: lineWidth)
-            }
-        }
-
-        if let latestSegment {
-            let previous = latestSegment.previous
-            let latest = latestSegment.latest
-            let vector = CGPoint(x: latest.x - previous.x, y: latest.y - previous.y)
-            let length = max(0.001, sqrt((vector.x * vector.x) + (vector.y * vector.y)))
-
-            if length > 1 {
-                let dir = CGPoint(x: vector.x / length, y: vector.y / length)
-                let perp = CGPoint(x: -dir.y, y: dir.x)
-                let base = CGPoint(x: latest.x - dir.x * directionArrowLength, y: latest.y - dir.y * directionArrowLength)
-                let left = CGPoint(x: base.x + perp.x * directionArrowHalfWidth, y: base.y + perp.y * directionArrowHalfWidth)
-                let right = CGPoint(x: base.x - perp.x * directionArrowHalfWidth, y: base.y - perp.y * directionArrowHalfWidth)
-
-                var arrowPath = Path()
-                arrowPath.move(to: latest)
-                arrowPath.addLine(to: left)
-                arrowPath.addLine(to: right)
-                arrowPath.closeSubpath()
-                context.fill(arrowPath, with: .color(.mint.opacity(0.95)))
-            }
-        }
-
-        if let current = currentPoint {
-            let mapped = mapPoint(current, bounds: bounds, size: size)
-            let outerRect = CGRect(
-                x: mapped.x - currentPointOuterRadius,
-                y: mapped.y - currentPointOuterRadius,
-                width: currentPointOuterRadius * 2,
-                height: currentPointOuterRadius * 2
-            )
-            let innerRect = CGRect(
-                x: mapped.x - currentPointInnerRadius,
-                y: mapped.y - currentPointInnerRadius,
-                width: currentPointInnerRadius * 2,
-                height: currentPointInnerRadius * 2
-            )
-            context.fill(Path(ellipseIn: outerRect), with: .color(.white.opacity(0.25)))
-            context.fill(Path(ellipseIn: innerRect), with: .color(.white))
-        }
-    }
-    
     private func mapBounds(
         trajectory: [SIMD2<Float>],
         meshPoints: [SIMD2<Float>],
@@ -579,25 +502,28 @@ struct CoverageMapOverlayView: View {
         return (minX, maxX, minY, maxY)
     }
     
-    private func mapPoint(
-        _ point: SIMD2<Float>,
-        bounds: (minX: Float, maxX: Float, minY: Float, maxY: Float),
-        size: CGSize
-    ) -> CGPoint {
-        let padding: CGFloat = 8
-        let spanX = max(minimumAxisSpan, bounds.maxX - bounds.minX)
-        let spanY = max(minimumAxisSpan, bounds.maxY - bounds.minY)
-        let scaleX = (size.width - 2 * padding) / CGFloat(spanX)
-        let scaleY = (size.height - 2 * padding) / CGFloat(spanY)
-        let scale = min(scaleX, scaleY)
-        
-        let centerX = (bounds.minX + bounds.maxX) * 0.5
-        let centerY = (bounds.minY + bounds.maxY) * 0.5
-        
-        let x = CGFloat(point.x - centerX) * scale + size.width * 0.5
-        let y = CGFloat(point.y - centerY) * scale + size.height * 0.5
-        
-        return CGPoint(x: x, y: y)
+}
+
+struct CoverageMeshPreviewOverlayView: View {
+    let session: ARSession
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Coverage 3D")
+                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                .foregroundStyle(.white.opacity(0.9))
+
+            ARMeshOverlayView(
+                session: session,
+                cameraBehavior: .fixedOverview,
+                fieldOfView: CGFloat(AppSettings.shared.coverageVisualizerFOV)
+            )
+                .frame(width: 110, height: 110)
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .allowsHitTesting(false)
+        }
+        .padding(8)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
     }
 }
 

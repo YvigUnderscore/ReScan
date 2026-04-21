@@ -256,7 +256,7 @@ struct SettingsView: View {
                             Text("Realtime Coverage Map")
                                 .font(.subheadline)
                                 .foregroundStyle(.white)
-                            Text("Shows a live top-down map during capture to monitor scanned coverage.")
+                            Text("Shows a live coverage overlay during capture (3D visualization or top-down heatmap).")
                                 .font(.caption2)
                                 .foregroundStyle(.secondary.opacity(0.6))
                         }
@@ -301,6 +301,27 @@ struct SettingsView: View {
                             }
                             .pickerStyle(.menu)
                             .tint(.green)
+                        }
+
+                        if settings.coverageMapMode == .threeDVisualization {
+                            VStack(alignment: .leading, spacing: 6) {
+                                HStack {
+                                    Image(systemName: "camera.metering.center.weighted")
+                                        .font(.caption)
+                                        .foregroundStyle(.green)
+                                        .frame(width: 20)
+                                    Text("3D Visualizer FOV")
+                                        .font(.subheadline)
+                                        .foregroundStyle(.white)
+                                    Spacer()
+                                    Text("\(Int(settings.coverageVisualizerFOV))°")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .monospacedDigit()
+                                }
+                                Slider(value: $settings.coverageVisualizerFOV, in: 35...100, step: 1)
+                                    .tint(.green)
+                            }
                         }
                     }
                     
