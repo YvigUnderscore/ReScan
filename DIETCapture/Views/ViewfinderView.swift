@@ -485,6 +485,8 @@ struct CoverageMapOverlayView: View {
         size: CGSize,
         bounds: (minX: Float, maxX: Float, minY: Float, maxY: Float)
     ) {
+        var latestSegment: (previous: CGPoint, latest: CGPoint)?
+
         if trajectory.count >= 2 {
             let segmentCount = max(1, trajectory.count - 1)
             for i in 0..<segmentCount {
@@ -493,6 +495,7 @@ struct CoverageMapOverlayView: View {
                 let end = mapPoint(trajectory[i + 1], bounds: bounds, size: size)
                 path.move(to: start)
                 path.addLine(to: end)
+                latestSegment = (previous: start, latest: end)
 
                 let t = CGFloat(i + 1) / CGFloat(segmentCount)
                 let opacity = trailMinimumOpacity + (trailOpacityRange * t)
@@ -501,9 +504,9 @@ struct CoverageMapOverlayView: View {
             }
         }
 
-        if trajectory.count >= 2 {
-            let previous = mapPoint(trajectory[trajectory.count - 2], bounds: bounds, size: size)
-            let latest = mapPoint(trajectory[trajectory.count - 1], bounds: bounds, size: size)
+        if let latestSegment {
+            let previous = latestSegment.previous
+            let latest = latestSegment.latest
             let vector = CGPoint(x: latest.x - previous.x, y: latest.y - previous.y)
             let length = max(0.001, sqrt((vector.x * vector.x) + (vector.y * vector.y)))
 
