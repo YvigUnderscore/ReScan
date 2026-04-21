@@ -19,6 +19,7 @@ struct ViewfinderView: View {
     @State private var coveragePathPoints: [SIMD2<Float>] = []
     @State private var coverageMeshPoints: [SIMD2<Float>] = []
     @State private var coverageCurrentPoint: SIMD2<Float>?
+    @State private var meshAnchorSignature: Int = 0
     
     private var shouldShowCoverageMap: Bool {
         AppSettings.shared.lidarEnabled &&
@@ -353,9 +354,14 @@ struct ViewfinderView: View {
             coveragePathPoints.removeFirst(coveragePathPoints.count - maxPathPoints)
         }
         
-        coverageMeshPoints = viewModel.lidar.meshAnchors.map { anchor in
-            let p = anchor.transform.columns.3
-            return SIMD2<Float>(p.x, p.z)
+        let anchors = viewModel.lidar.meshAnchors
+        let newSignature = anchors.reduce(0) { $0 ^ $1.identifier.hashValue }
+        if newSignature != meshAnchorSignature || anchors.count != coverageMeshPoints.count {
+            coverageMeshPoints = anchors.map { anchor in
+                let p = anchor.transform.columns.3
+                return SIMD2<Float>(p.x, p.z)
+            }
+            meshAnchorSignature = newSignature
         }
         coverageCurrentPoint = current
     }
@@ -364,6 +370,7 @@ struct ViewfinderView: View {
         if !coveragePathPoints.isEmpty { coveragePathPoints.removeAll(keepingCapacity: true) }
         if !coverageMeshPoints.isEmpty { coverageMeshPoints.removeAll(keepingCapacity: true) }
         coverageCurrentPoint = nil
+        meshAnchorSignature = 0
     }
     
     // MARK: - Haptic
@@ -382,14 +389,16 @@ struct CoverageMapOverlayView: View {
     let currentPoint: SIMD2<Float>?
     
     var body: some View {
+        let allPoints = trajectory + meshPoints + (currentPoint.map { [$0] } ?? [])
+        let bounds = mapBounds(for: allPoints)
+        
         VStack(alignment: .leading, spacing: 6) {
             Text("Coverage")
                 .font(.system(size: 10, weight: .semibold, design: .rounded))
                 .foregroundStyle(.white.opacity(0.9))
             
             Canvas { context, size in
-                let allPoints = trajectory + meshPoints + (currentPoint.map { [$0] } ?? [])
-                guard let bounds = mapBounds(for: allPoints) else { return }
+                guard let bounds else { return }
                 
                 if !meshPoints.isEmpty {
                     let mapped = meshPoints.map { mapPoint($0, bounds: bounds, size: size) }
