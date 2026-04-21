@@ -506,6 +506,7 @@ struct CoverageMapOverlayView: View {
         let cellW = size.width / CGFloat(gridSize)
         let cellH = size.height / CGFloat(gridSize)
         var counts = Array(repeating: 0, count: gridSize * gridSize)
+        var maxCount = 1
 
         for point in meshPoints {
             let normalizedX = (point.x - bounds.minX) / spanX
@@ -516,9 +517,9 @@ struct CoverageMapOverlayView: View {
             let y = Int(clampedY * Float(gridSize))
             let key = (y * gridSize) + x
             counts[key] += 1
+            maxCount = max(maxCount, counts[key])
         }
-
-        let maxCount = max(1, counts.max() ?? 1)
+        
         for y in 0..<gridSize {
             for x in 0..<gridSize {
                 let key = (y * gridSize) + x
