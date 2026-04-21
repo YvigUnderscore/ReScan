@@ -106,6 +106,10 @@ extension Double {
 // MARK: - Float Range Mapping
 
 extension ClosedRange where Bound == Float {
+    func clamp(_ value: Float) -> Float {
+        max(lowerBound, min(value, upperBound))
+    }
+    
     func normalize(_ value: Float) -> Float {
         let span = upperBound - lowerBound
         guard span > 0 else {
@@ -118,7 +122,7 @@ extension ClosedRange where Bound == Float {
     }
     
     func denormalize(_ value: Float) -> Float {
-        let clamped = max(0, min(value, 1))
+        let clamped = (0...1).clamp(value)
         return lowerBound + clamped * (upperBound - lowerBound)
     }
 }

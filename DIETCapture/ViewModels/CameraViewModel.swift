@@ -101,7 +101,7 @@ final class CameraViewModel {
     }
     
     func updateISO(sliderValue: Float) {
-        isoSliderValue = Self.unitRange.denormalize(sliderValue)
+        isoSliderValue = Self.unitRange.clamp(sliderValue)
         let iso = isoRange.denormalize(isoSliderValue)
         settings.iso = iso
         
@@ -114,7 +114,7 @@ final class CameraViewModel {
     }
     
     func updateEV(sliderValue: Float) {
-        evSliderValue = Self.unitRange.denormalize(sliderValue)
+        evSliderValue = Self.unitRange.clamp(sliderValue)
         let ev = evRange.denormalize(evSliderValue)
         settings.exposureCompensation = ev
         cameraService.setExposureCompensation(ev)
@@ -128,7 +128,7 @@ final class CameraViewModel {
     }
     
     func updateFocus(sliderValue: Float) {
-        focusSliderValue = Self.unitRange.denormalize(sliderValue)
+        focusSliderValue = Self.unitRange.clamp(sliderValue)
         settings.manualFocusPosition = focusSliderValue
         if settings.focusMode == .manual {
             cameraService.setFocusMode(.manual, lensPosition: focusSliderValue)
@@ -170,7 +170,7 @@ final class CameraViewModel {
     private func syncSliderValuesFromSettings() {
         isoSliderValue = isoRange.normalize(settings.iso)
         evSliderValue = evRange.normalize(settings.exposureCompensation)
-        focusSliderValue = Self.unitRange.denormalize(settings.manualFocusPosition)
+        focusSliderValue = Self.unitRange.clamp(settings.manualFocusPosition)
     }
 }
 
