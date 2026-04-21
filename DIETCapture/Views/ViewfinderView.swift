@@ -394,6 +394,8 @@ struct CoverageMapOverlayView: View {
     private let minimumAxisSpan: Float = 0.001
     private let heatmapMinimumOpacity: Double = 0.12
     private let heatmapOpacityRange: Double = 0.78
+    private let meshSurfaceMinimumOpacity: Double = 0.2
+    private let meshSurfaceOpacityRange: Double = 0.55
     
     let trajectory: [SIMD2<Float>]
     let meshPoints: [SIMD2<Float>]
@@ -415,17 +417,7 @@ struct CoverageMapOverlayView: View {
                 switch mode {
                 case .trajectoryMesh:
                     if !meshPoints.isEmpty {
-                        let mapped = meshPoints.map { mapPoint($0, bounds: bounds, size: size) }
-                        let meshDotSize = density.meshDotSize
-                        for point in mapped {
-                            let dotRect = CGRect(
-                                x: point.x - (meshDotSize / 2),
-                                y: point.y - (meshDotSize / 2),
-                                width: meshDotSize,
-                                height: meshDotSize
-                            )
-                            context.fill(Path(ellipseIn: dotRect), with: .color(.cyan.opacity(0.7)))
-                        }
+                        drawMeshSurface(context: context, size: size, bounds: bounds)
                     }
 
                     if trajectory.count >= 2 {
@@ -496,6 +488,51 @@ struct CoverageMapOverlayView: View {
                 Path(rect),
                 with: .color(Color.cyan.opacity(heatmapMinimumOpacity + (heatmapOpacityRange * intensity)))
             )
+        }
+    }
+
+    private func drawMeshSurface(
+        context: GraphicsContext,
+        size: CGSize,
+        bounds: (minX: Float, maxX: Float, minY: Float, maxY: Float)
+    ) {
+        let gridSize = max(8, Int(CGFloat(density.heatmapGridSize) * 0.75))
+        let spanX = max(minimumAxisSpan, bounds.maxX - bounds.minX)
+        let spanY = max(minimumAxisSpan, bounds.maxY - bounds.minY)
+        let cellW = size.width / CGFloat(gridSize)
+        let cellH = size.height / CGFloat(gridSize)
+        var counts = Array(repeating: 0, count: gridSize * gridSize)
+
+        for point in meshPoints {
+            let normalizedX = (point.x - bounds.minX) / spanX
+            let normalizedY = (point.y - bounds.minY) / spanY
+            let clampedX = max(0, min(0.999, normalizedX))
+            let clampedY = max(0, min(0.999, normalizedY))
+            let x = Int(clampedX * Float(gridSize))
+            let y = Int(clampedY * Float(gridSize))
+            let key = (y * gridSize) + x
+            counts[key] += 1
+        }
+
+        let maxCount = max(1, counts.max() ?? 1)
+        for y in 0..<gridSize {
+            for x in 0..<gridSize {
+                let key = (y * gridSize) + x
+                let count = counts[key]
+                guard count > 0 else { continue }
+
+                let intensity = CGFloat(count) / CGFloat(maxCount)
+                let rect = CGRect(
+                    x: CGFloat(x) * cellW,
+                    y: CGFloat(y) * cellH,
+                    width: cellW,
+                    height: cellH
+                )
+                context.fill(
+                    Path(roundedRect: rect, cornerRadius: min(cellW, cellH) * 0.22),
+                    with: .color(Color.cyan.opacity(meshSurfaceMinimumOpacity + (meshSurfaceOpacityRange * intensity)))
+                )
+            }
         }
     }
     
