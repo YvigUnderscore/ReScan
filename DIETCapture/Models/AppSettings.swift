@@ -72,6 +72,7 @@ final class AppSettings: ObservableObject {
     @AppStorage("showRealtimeCoverageMap") var showRealtimeCoverageMap: Bool = false
     @AppStorage("coverageMapDensity") var coverageMapDensity: CoverageMapDensity = .high
     @AppStorage("coverageMapMode") var coverageMapMode: CoverageMapMode = .threeDVisualization
+    @AppStorage("coverageVisualizerFOV") var coverageVisualizerFOV: Double = 60
     
     // MARK: - Adaptive Mesh Refinement
     

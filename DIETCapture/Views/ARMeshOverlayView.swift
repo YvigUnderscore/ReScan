@@ -9,7 +9,14 @@ import ARKit
 import SceneKit
 
 struct ARMeshOverlayView: UIViewRepresentable {
+    enum CameraBehavior {
+        case followDevice
+        case fixedOverview
+    }
+
     let session: ARSession
+    var cameraBehavior: CameraBehavior = .followDevice
+    var fieldOfView: CGFloat = 60
     
     func makeUIView(context: Context) -> ARSCNView {
         let arView = ARSCNView(frame: .zero)
@@ -22,12 +29,13 @@ struct ARMeshOverlayView: UIViewRepresentable {
         
         // Setup lighting
         arView.autoenablesDefaultLighting = true
+        context.coordinator.configure(view: arView, cameraBehavior: cameraBehavior, fieldOfView: fieldOfView)
         
         return arView
     }
     
     func updateUIView(_ uiView: ARSCNView, context: Context) {
-        // No-op
+        context.coordinator.configure(view: uiView, cameraBehavior: cameraBehavior, fieldOfView: fieldOfView)
     }
     
     func makeCoordinator() -> Coordinator {
@@ -35,6 +43,8 @@ struct ARMeshOverlayView: UIViewRepresentable {
     }
     
     class Coordinator: NSObject, ARSCNViewDelegate {
+        private let cameraNode = SCNNode()
+
         // Semi-transparent colored material for the mesh
         private lazy var meshMaterial: SCNMaterial = {
             let material = SCNMaterial()
@@ -50,6 +60,31 @@ struct ARMeshOverlayView: UIViewRepresentable {
             material.fillMode = .lines
             return material
         }()
+
+        func configure(view: ARSCNView, cameraBehavior: CameraBehavior, fieldOfView: CGFloat) {
+            switch cameraBehavior {
+            case .followDevice:
+                view.pointOfView = nil
+                view.scene.background.contents = UIColor.clear
+
+            case .fixedOverview:
+                if cameraNode.camera == nil {
+                    let camera = SCNCamera()
+                    camera.zNear = 0.01
+                    camera.zFar = 100
+                    cameraNode.camera = camera
+                }
+                if cameraNode.parent == nil {
+                    view.scene.rootNode.addChildNode(cameraNode)
+                }
+
+                cameraNode.camera?.fieldOfView = max(20, min(110, fieldOfView))
+                cameraNode.position = SCNVector3(0, 1.6, 2.4)
+                cameraNode.look(at: SCNVector3(0, 0, 0))
+                view.pointOfView = cameraNode
+                view.scene.background.contents = UIColor.black
+            }
+        }
         
         // MARK: - ARSCNViewDelegate
         

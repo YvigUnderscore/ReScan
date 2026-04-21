@@ -302,6 +302,27 @@ struct SettingsView: View {
                             .pickerStyle(.menu)
                             .tint(.green)
                         }
+
+                        if settings.coverageMapMode == .threeDVisualization {
+                            VStack(alignment: .leading, spacing: 6) {
+                                HStack {
+                                    Image(systemName: "camera.metering.center.weighted")
+                                        .font(.caption)
+                                        .foregroundStyle(.green)
+                                        .frame(width: 20)
+                                    Text("3D Visualizer FOV")
+                                        .font(.subheadline)
+                                        .foregroundStyle(.white)
+                                    Spacer()
+                                    Text("\(Int(settings.coverageVisualizerFOV))°")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .monospacedDigit()
+                                }
+                                Slider(value: $settings.coverageVisualizerFOV, in: 35...100, step: 1)
+                                    .tint(.green)
+                            }
+                        }
                     }
                     
                     rowDivider

@@ -513,7 +513,11 @@ struct CoverageMeshPreviewOverlayView: View {
                 .font(.system(size: 10, weight: .semibold, design: .rounded))
                 .foregroundStyle(.white.opacity(0.9))
 
-            ARMeshOverlayView(session: session)
+            ARMeshOverlayView(
+                session: session,
+                cameraBehavior: .fixedOverview,
+                fieldOfView: CGFloat(AppSettings.shared.coverageVisualizerFOV)
+            )
                 .frame(width: 110, height: 110)
                 .clipShape(RoundedRectangle(cornerRadius: 10))
                 .allowsHitTesting(false)
