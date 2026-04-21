@@ -399,6 +399,8 @@ struct CoverageMapOverlayView: View {
     private let meshSurfaceGridScale: CGFloat = 0.75
     private let meshSurfaceCellCornerRadiusRatio: CGFloat = 0.22
     private let meshSurfaceMinimumGridSize: Int = 8
+    // Use slightly below 1.0 so points at the exact max bound still map to the
+    // last valid grid cell index after Float math and Int conversion.
     private let gridNormalizationUpperBound: Float = 0.999
     
     let trajectory: [SIMD2<Float>]
@@ -515,8 +517,8 @@ struct CoverageMapOverlayView: View {
             let normalizedY = (point.y - bounds.minY) / spanY
             // Clamp due to ARKit pose jitter at bounds edges that can otherwise
             // create out-of-range indices when mapping into grid cells.
-            let clampedX = max(0, min(gridNormalizationUpperBound, normalizedX))
-            let clampedY = max(0, min(gridNormalizationUpperBound, normalizedY))
+            let clampedX = clampGridNormalizedValue(normalizedX)
+            let clampedY = clampGridNormalizedValue(normalizedY)
             let x = Int(clampedX * Float(gridSize))
             let y = Int(clampedY * Float(gridSize))
             let key = (y * gridSize) + x
@@ -543,6 +545,10 @@ struct CoverageMapOverlayView: View {
                 )
             }
         }
+    }
+
+    private func clampGridNormalizedValue(_ value: Float) -> Float {
+        max(0, min(gridNormalizationUpperBound, value))
     }
     
     private func mapBounds(
