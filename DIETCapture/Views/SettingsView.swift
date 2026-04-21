@@ -256,7 +256,7 @@ struct SettingsView: View {
                             Text("Realtime Coverage Map")
                                 .font(.subheadline)
                                 .foregroundStyle(.white)
-                            Text("Shows a live top-down map during capture to monitor scanned coverage.")
+                            Text("Shows a live coverage overlay during capture (3D visualization or top-down heatmap).")
                                 .font(.caption2)
                                 .foregroundStyle(.secondary.opacity(0.6))
                         }

@@ -71,7 +71,7 @@ final class AppSettings: ObservableObject {
     @AppStorage("depthColorMap") var depthColorMap: DepthColorMap = .jet
     @AppStorage("showRealtimeCoverageMap") var showRealtimeCoverageMap: Bool = false
     @AppStorage("coverageMapDensity") var coverageMapDensity: CoverageMapDensity = .high
-    @AppStorage("coverageMapMode") var coverageMapMode: CoverageMapMode = .scanTrail
+    @AppStorage("coverageMapMode") var coverageMapMode: CoverageMapMode = .threeDVisualization
     
     // MARK: - Adaptive Mesh Refinement
     
@@ -160,7 +160,7 @@ final class AppSettings: ObservableObject {
     }
 
     enum CoverageMapMode: String, CaseIterable, Identifiable {
-        case scanTrail = "Scan Trail"
+        case threeDVisualization = "3D Visualization"
         case gridHeatmap = "Grid Heatmap"
 
         var id: String { rawValue }
