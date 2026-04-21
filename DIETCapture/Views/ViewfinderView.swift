@@ -517,19 +517,19 @@ struct CoverageMapOverlayView: View {
             let normalizedY = (point.y - bounds.minY) / spanY
             // Clamp due to ARKit pose jitter at bounds edges that can otherwise
             // create out-of-range indices when mapping into grid cells.
-            let clampedX = clampGridNormalizedValue(normalizedX)
-            let clampedY = clampGridNormalizedValue(normalizedY)
+            let clampedX = clampToGrid(normalizedX)
+            let clampedY = clampToGrid(normalizedY)
             let x = Int(clampedX * Float(gridSize))
             let y = Int(clampedY * Float(gridSize))
-            let key = (y * gridSize) + x
-            counts[key] += 1
-            maxCount = max(maxCount, counts[key])
+            let cellIndex = (y * gridSize) + x
+            counts[cellIndex] += 1
+            maxCount = max(maxCount, counts[cellIndex])
         }
         
         for y in 0..<gridSize {
             for x in 0..<gridSize {
-                let key = (y * gridSize) + x
-                let count = counts[key]
+                let cellIndex = (y * gridSize) + x
+                let count = counts[cellIndex]
                 guard count > 0 else { continue }
 
                 let intensity = CGFloat(count) / CGFloat(maxCount)
@@ -547,7 +547,7 @@ struct CoverageMapOverlayView: View {
         }
     }
 
-    private func clampGridNormalizedValue(_ value: Float) -> Float {
+    private func clampToGrid(_ value: Float) -> Float {
         max(0, min(gridNormalizationUpperBound, value))
     }
     
