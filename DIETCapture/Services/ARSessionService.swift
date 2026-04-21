@@ -50,6 +50,9 @@ final class ARSessionService: NSObject {
         
         let config = ARWorldTrackingConfiguration()
         let settings = AppSettings.shared
+        // Intentionally not toggling video stabilization here because
+        // ARWorldTrackingConfiguration.videoStabilizationEnabled is unavailable
+        // in the CI SDK (Xcode 16.4), which causes compile failures.
         // Select resolution — always use 30fps for ARKit (best tracking stability)
         // Actual capture FPS is handled by frame subsampling in CaptureViewModel
         let formats = ARWorldTrackingConfiguration.supportedVideoFormats
