@@ -70,6 +70,8 @@ final class AppSettings: ObservableObject {
     @AppStorage("defaultSmoothing") var defaultSmoothing: Bool = true
     @AppStorage("depthColorMap") var depthColorMap: DepthColorMap = .jet
     @AppStorage("showRealtimeCoverageMap") var showRealtimeCoverageMap: Bool = false
+    @AppStorage("coverageMapDensity") var coverageMapDensity: CoverageMapDensity = .high
+    @AppStorage("coverageMapMode") var coverageMapMode: CoverageMapMode = .trajectoryMesh
     
     // MARK: - Adaptive Mesh Refinement
     
@@ -92,6 +94,67 @@ final class AppSettings: ObservableObject {
             case .turbo:  return .turbo
             }
         }
+    }
+
+    enum CoverageMapDensity: String, CaseIterable, Identifiable {
+        case low = "Low"
+        case medium = "Medium"
+        case high = "High"
+        case ultra = "Ultra"
+
+        var id: String { rawValue }
+
+        var pathStepDistance: Float {
+            switch self {
+            case .low: return 0.05
+            case .medium: return 0.03
+            case .high: return 0.015
+            case .ultra: return 0.008
+            }
+        }
+
+        var maxTrajectoryPoints: Int {
+            switch self {
+            case .low: return 1_200
+            case .medium: return 2_200
+            case .high: return 4_000
+            case .ultra: return 7_500
+            }
+        }
+
+        var maxVisibleMeshAnchors: Int {
+            switch self {
+            case .low: return 400
+            case .medium: return 900
+            case .high: return 1_800
+            case .ultra: return 3_200
+            }
+        }
+
+        var meshRefreshTickInterval: Int {
+            switch self {
+            case .low: return 6
+            case .medium: return 4
+            case .high: return 2
+            case .ultra: return 1
+            }
+        }
+
+        var meshDotSize: CGFloat {
+            switch self {
+            case .low: return 3
+            case .medium: return 2.6
+            case .high: return 2.2
+            case .ultra: return 1.8
+            }
+        }
+    }
+
+    enum CoverageMapMode: String, CaseIterable, Identifiable {
+        case trajectoryMesh = "Trajectory + Mesh"
+        case gridHeatmap = "Grid Heatmap"
+
+        var id: String { rawValue }
     }
     
     enum VideoResolution: String, CaseIterable, Identifiable {

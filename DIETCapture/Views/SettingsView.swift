@@ -265,6 +265,44 @@ struct SettingsView: View {
                             .tint(.green)
                             .labelsHidden()
                     }
+
+                    if settings.showRealtimeCoverageMap {
+                        HStack {
+                            Image(systemName: "point.3.connected.trianglepath.dotted")
+                                .font(.caption)
+                                .foregroundStyle(.green)
+                                .frame(width: 20)
+                            Text("Coverage Density")
+                                .font(.subheadline)
+                                .foregroundStyle(.white)
+                            Spacer()
+                            Picker("", selection: $settings.coverageMapDensity) {
+                                ForEach(AppSettings.CoverageMapDensity.allCases) { density in
+                                    Text(density.rawValue).tag(density)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                            .tint(.green)
+                        }
+
+                        HStack {
+                            Image(systemName: "square.grid.3x3.fill")
+                                .font(.caption)
+                                .foregroundStyle(.green)
+                                .frame(width: 20)
+                            Text("Coverage Mode")
+                                .font(.subheadline)
+                                .foregroundStyle(.white)
+                            Spacer()
+                            Picker("", selection: $settings.coverageMapMode) {
+                                ForEach(AppSettings.CoverageMapMode.allCases) { mode in
+                                    Text(mode.rawValue).tag(mode)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                            .tint(.green)
+                        }
+                    }
                     
                     rowDivider
                     

@@ -13,7 +13,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.rescan.app
         INFOPLIST_FILE: DIETCapture/App/Info.plist
-        MARKETING_VERSION: 1.0
+        MARKETING_VERSION: 1.2.0
         CURRENT_PROJECT_VERSION: 1
         TARGETED_DEVICE_FAMILY: "1,2"
         SUPPORTED_PLATFORMS: iphonesimulator iphoneos
@@ -36,7 +36,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.rescan.app.widget
         INFOPLIST_FILE: ReScanWidget/Info.plist
-        MARKETING_VERSION: 1.0
+        MARKETING_VERSION: 1.2.0
         CURRENT_PROJECT_VERSION: 1
         TARGETED_DEVICE_FAMILY: "1,2"
         SUPPORTED_PLATFORMS: iphonesimulator iphoneos

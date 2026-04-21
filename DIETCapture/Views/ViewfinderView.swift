@@ -7,10 +7,6 @@ import SwiftUI
 import simd
 
 struct ViewfinderView: View {
-    private let minPathStepDistance: Float = 0.03
-    private let maxTrajectoryPoints = 1_200
-    private let maxVisibleMeshAnchors = 400
-    
     @Bindable var viewModel: CaptureViewModel
     
     // Shared CIContext for efficient rendering
@@ -29,6 +25,10 @@ struct ViewfinderView: View {
         AppSettings.shared.lidarEnabled &&
         AppSettings.shared.showRealtimeCoverageMap &&
         (viewModel.isRecording || viewModel.isWaitingForMesh)
+    }
+
+    private var coverageDensity: AppSettings.CoverageMapDensity {
+        AppSettings.shared.coverageMapDensity
     }
     
     var body: some View {
@@ -81,7 +81,9 @@ struct ViewfinderView: View {
                                 CoverageMapOverlayView(
                                     trajectory: coveragePathPoints,
                                     meshPoints: coverageMeshPoints,
-                                    currentPoint: coverageCurrentPoint
+                                    currentPoint: coverageCurrentPoint,
+                                    mode: AppSettings.shared.coverageMapMode,
+                                    density: coverageDensity
                                 )
                             }
                             Spacer()
@@ -335,15 +337,16 @@ struct ViewfinderView: View {
             resetCoverageMap()
             return
         }
+        let density = coverageDensity
         
         let pose = viewModel.lidar.currentPose
         let translation = pose.columns.3
         let current = SIMD2<Float>(translation.x, translation.z)
         
         if let last = coveragePathPoints.last {
-            // Require ~3 cm movement before appending, which filters AR pose jitter
-            // while preserving enough path detail for a usable live coverage map.
-            if simd_distance(last, current) >= minPathStepDistance {
+            // Require minimum movement before appending to reduce AR pose jitter,
+            // with sensitivity tuned by the selected density.
+            if simd_distance(last, current) >= density.pathStepDistance {
                 coveragePathPoints.append(current)
             }
         } else {
@@ -352,15 +355,15 @@ struct ViewfinderView: View {
         
         // Cap trajectory history to keep memory bounded while preserving recent
         // coverage context in the overlay during a recording.
-        if coveragePathPoints.count > maxTrajectoryPoints {
-            coveragePathPoints.removeFirst(coveragePathPoints.count - maxTrajectoryPoints)
+        if coveragePathPoints.count > density.maxTrajectoryPoints {
+            coveragePathPoints.removeFirst(coveragePathPoints.count - density.maxTrajectoryPoints)
         }
         
         meshUpdateTick += 1
-        // Refresh mesh points every 6 ticks (~5 Hz with the 30 Hz preview timer)
-        // to reduce overlay update cost while keeping coverage responsive.
-        if meshUpdateTick % 6 == 0 {
-            coverageMeshPoints = viewModel.lidar.meshAnchors.prefix(maxVisibleMeshAnchors).map { anchor in
+        // Refresh mesh points at an interval tuned by selected density to balance
+        // overlay responsiveness and rendering cost.
+        if meshUpdateTick % density.meshRefreshTickInterval == 0 {
+            coverageMeshPoints = viewModel.lidar.meshAnchors.prefix(density.maxVisibleMeshAnchors).map { anchor in
                 let p = anchor.transform.columns.3
                 return SIMD2<Float>(p.x, p.z)
             }
@@ -393,6 +396,8 @@ struct CoverageMapOverlayView: View {
     let trajectory: [SIMD2<Float>]
     let meshPoints: [SIMD2<Float>]
     let currentPoint: SIMD2<Float>?
+    let mode: AppSettings.CoverageMapMode
+    let density: AppSettings.CoverageMapDensity
     
     var body: some View {
         let bounds = mapBounds(trajectory: trajectory, meshPoints: meshPoints, currentPoint: currentPoint)
@@ -404,28 +409,40 @@ struct CoverageMapOverlayView: View {
             
             Canvas { context, size in
                 guard let bounds else { return }
-                
-                if !meshPoints.isEmpty {
-                    let mapped = meshPoints.map { mapPoint($0, bounds: bounds, size: size) }
-                    for point in mapped {
-                        let dotRect = CGRect(x: point.x - 1.5, y: point.y - 1.5, width: 3, height: 3)
-                        context.fill(Path(ellipseIn: dotRect), with: .color(.cyan.opacity(0.65)))
+
+                switch mode {
+                case .trajectoryMesh:
+                    if !meshPoints.isEmpty {
+                        let mapped = meshPoints.map { mapPoint($0, bounds: bounds, size: size) }
+                        let meshDotSize = density.meshDotSize
+                        for point in mapped {
+                            let dotRect = CGRect(
+                                x: point.x - (meshDotSize / 2),
+                                y: point.y - (meshDotSize / 2),
+                                width: meshDotSize,
+                                height: meshDotSize
+                            )
+                            context.fill(Path(ellipseIn: dotRect), with: .color(.cyan.opacity(0.7)))
+                        }
                     }
-                }
-                
-                if trajectory.count >= 2 {
-                    var path = Path()
-                    path.move(to: mapPoint(trajectory[0], bounds: bounds, size: size))
-                    for point in trajectory.dropFirst() {
-                        path.addLine(to: mapPoint(point, bounds: bounds, size: size))
+
+                    if trajectory.count >= 2 {
+                        var path = Path()
+                        path.move(to: mapPoint(trajectory[0], bounds: bounds, size: size))
+                        for point in trajectory.dropFirst() {
+                            path.addLine(to: mapPoint(point, bounds: bounds, size: size))
+                        }
+                        context.stroke(path, with: .color(.green), lineWidth: 2)
                     }
-                    context.stroke(path, with: .color(.green), lineWidth: 2)
-                }
-                
-                if let current = currentPoint {
-                    let mapped = mapPoint(current, bounds: bounds, size: size)
-                    let currentRect = CGRect(x: mapped.x - 3, y: mapped.y - 3, width: 6, height: 6)
-                    context.fill(Path(ellipseIn: currentRect), with: .color(.white))
+
+                    if let current = currentPoint {
+                        let mapped = mapPoint(current, bounds: bounds, size: size)
+                        let currentRect = CGRect(x: mapped.x - 3, y: mapped.y - 3, width: 6, height: 6)
+                        context.fill(Path(ellipseIn: currentRect), with: .color(.white))
+                    }
+
+                case .gridHeatmap:
+                    drawGridHeatmap(context: context, size: size, bounds: bounds)
                 }
             }
             .frame(width: 110, height: 110)
@@ -433,6 +450,57 @@ struct CoverageMapOverlayView: View {
         }
         .padding(8)
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
+    }
+
+    private func drawGridHeatmap(
+        context: GraphicsContext,
+        size: CGSize,
+        bounds: (minX: Float, maxX: Float, minY: Float, maxY: Float)
+    ) {
+        let allPoints = trajectory + meshPoints + (currentPoint.map { [$0] } ?? [])
+        guard !allPoints.isEmpty else { return }
+
+        let gridSize: Int
+        switch density {
+        case .low: gridSize = 12
+        case .medium: gridSize = 18
+        case .high: gridSize = 26
+        case .ultra: gridSize = 34
+        }
+
+        let spanX = max(minimumAxisSpan, bounds.maxX - bounds.minX)
+        let spanY = max(minimumAxisSpan, bounds.maxY - bounds.minY)
+        let cellW = size.width / CGFloat(gridSize)
+        let cellH = size.height / CGFloat(gridSize)
+        var counts: [Int: Int] = [:]
+
+        for point in allPoints {
+            let normalizedX = (point.x - bounds.minX) / spanX
+            let normalizedY = (point.y - bounds.minY) / spanY
+            let clampedX = max(0, min(0.999, normalizedX))
+            let clampedY = max(0, min(0.999, normalizedY))
+            let x = Int(clampedX * Float(gridSize))
+            let y = Int(clampedY * Float(gridSize))
+            let key = (y * gridSize) + x
+            counts[key, default: 0] += 1
+        }
+
+        let maxCount = max(1, counts.values.max() ?? 1)
+        for (key, count) in counts {
+            let x = key % gridSize
+            let y = key / gridSize
+            let intensity = CGFloat(count) / CGFloat(maxCount)
+            let rect = CGRect(
+                x: CGFloat(x) * cellW,
+                y: CGFloat(y) * cellH,
+                width: cellW,
+                height: cellH
+            )
+            context.fill(
+                Path(rect),
+                with: .color(Color.cyan.opacity(0.12 + (0.78 * intensity)))
+            )
+        }
     }
     
     private func mapBounds(

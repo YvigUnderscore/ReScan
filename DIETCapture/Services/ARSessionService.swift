@@ -6,6 +6,7 @@
 import Foundation
 import ARKit
 import Combine
+import AVFoundation
 
 @Observable
 final class ARSessionService: NSObject {
@@ -50,6 +51,7 @@ final class ARSessionService: NSObject {
         
         let config = ARWorldTrackingConfiguration()
         let settings = AppSettings.shared
+        disableVideoStabilizationIfSupported(config)
         
         // Select resolution — always use 30fps for ARKit (best tracking stability)
         // Actual capture FPS is handled by frame subsampling in CaptureViewModel
@@ -114,6 +116,23 @@ final class ARSessionService: NSObject {
         self.configuration = config
         arSession.run(config, options: [.resetTracking, .removeExistingAnchors])
         isRunning = true
+    }
+
+    private func disableVideoStabilizationIfSupported(_ config: ARWorldTrackingConfiguration) {
+        let preferredModeSelector = NSSelectorFromString("setPreferredVideoStabilizationMode:")
+        if config.responds(to: preferredModeSelector) {
+            config.setValue(AVCaptureVideoStabilizationMode.off.rawValue, forKey: "preferredVideoStabilizationMode")
+            print("[ARSessionService] preferredVideoStabilizationMode set to off")
+            return
+        }
+
+        let stabilizationEnabledSelector = NSSelectorFromString("setVideoStabilizationEnabled:")
+        if config.responds(to: stabilizationEnabledSelector) {
+            config.setValue(false, forKey: "videoStabilizationEnabled")
+            print("[ARSessionService] video stabilization disabled")
+        } else {
+            print("[ARSessionService] No stabilization API available on this iOS version")
+        }
     }
     
     func stopSession() {
