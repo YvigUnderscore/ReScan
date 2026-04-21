@@ -9,6 +9,7 @@ import CoreMedia
 
 @Observable
 final class CameraViewModel {
+    private static let unitRange: ClosedRange<Float> = 0...1
     
     // MARK: - Services
     
@@ -65,6 +66,8 @@ final class CameraViewModel {
     
     func setup(device: AVCaptureDevice?) {
         cameraService.attachToDevice(device)
+        applyCurrentSettings()
+        syncSliderValuesFromSettings()
     }
     
     func teardown() {
@@ -75,7 +78,14 @@ final class CameraViewModel {
     
     func setExposureMode(_ mode: ExposureMode) {
         settings.exposureMode = mode
-        cameraService.setExposureMode(mode)
+        if mode == .manual {
+            cameraService.setManualExposure(
+                shutterSpeed: settings.shutterSpeed,
+                iso: settings.iso
+            )
+        } else {
+            cameraService.setExposureMode(mode)
+        }
     }
     
     func setShutterPreset(_ preset: ShutterSpeedPreset) {
@@ -91,9 +101,8 @@ final class CameraViewModel {
     }
     
     func updateISO(sliderValue: Float) {
-        isoSliderValue = sliderValue
-        let range = isoRange
-        let iso = range.lowerBound + sliderValue * (range.upperBound - range.lowerBound)
+        isoSliderValue = Self.unitRange.clamp(sliderValue)
+        let iso = isoRange.denormalize(isoSliderValue)
         settings.iso = iso
         
         if settings.exposureMode == .manual {
@@ -105,9 +114,8 @@ final class CameraViewModel {
     }
     
     func updateEV(sliderValue: Float) {
-        evSliderValue = sliderValue
-        let range = evRange
-        let ev = range.lowerBound + sliderValue * (range.upperBound - range.lowerBound)
+        evSliderValue = Self.unitRange.clamp(sliderValue)
+        let ev = evRange.denormalize(evSliderValue)
         settings.exposureCompensation = ev
         cameraService.setExposureCompensation(ev)
     }
@@ -120,10 +128,10 @@ final class CameraViewModel {
     }
     
     func updateFocus(sliderValue: Float) {
-        focusSliderValue = sliderValue
-        settings.manualFocusPosition = sliderValue
+        focusSliderValue = Self.unitRange.clamp(sliderValue)
+        settings.manualFocusPosition = focusSliderValue
         if settings.focusMode == .manual {
-            cameraService.setFocusMode(.manual, lensPosition: sliderValue)
+            cameraService.setFocusMode(.manual, lensPosition: focusSliderValue)
         }
     }
     
@@ -148,6 +156,23 @@ final class CameraViewModel {
         if settings.whiteBalanceMode == .manual {
             cameraService.setManualWhiteBalance(temperature: temperature, tint: tint)
         }
+    }
+    
+    // MARK: - Apply Defaults
+    
+    private func applyCurrentSettings() {
+        setExposureMode(settings.exposureMode)
+        cameraService.setExposureCompensation(settings.exposureCompensation)
+        setFocusMode(settings.focusMode)
+        setWhiteBalanceMode(settings.whiteBalanceMode)
+    }
+    
+    private func syncSliderValuesFromSettings() {
+        settings.iso = isoRange.clamp(settings.iso)
+        settings.exposureCompensation = evRange.clamp(settings.exposureCompensation)
+        isoSliderValue = isoRange.normalize(settings.iso)
+        evSliderValue = evRange.normalize(settings.exposureCompensation)
+        focusSliderValue = Self.unitRange.clamp(settings.manualFocusPosition)
     }
 }
 

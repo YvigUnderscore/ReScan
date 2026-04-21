@@ -125,6 +125,10 @@ struct GlassSettingsSheet: View {
 struct ExposureControlsView: View {
     @Bindable var viewModel: CameraViewModel
     
+    private var exposureModes: [ExposureMode] {
+        ExposureMode.allCases.filter(\.isUserSelectable)
+    }
+    
     var body: some View {
         GlassCard {
             VStack(spacing: 14) {
@@ -135,7 +139,7 @@ struct ExposureControlsView: View {
                         .foregroundStyle(.secondary)
                     Spacer()
                     HStack(spacing: 4) {
-                        ForEach(ExposureMode.allCases) { mode in
+                        ForEach(exposureModes, id: \.self) { mode in
                             GlassPill(
                                 label: mode.rawValue,
                                 isSelected: viewModel.settings.exposureMode == mode
@@ -197,6 +201,68 @@ struct ExposureControlsView: View {
                     displayValue: viewModel.evDisplay,
                     isEnabled: true // EV compensation works in all modes
                 )
+                
+                // Color Correction (White Balance)
+                HStack {
+                    Label("Color", systemImage: "eyedropper.halffull")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    HStack(spacing: 4) {
+                        ForEach(WhiteBalanceMode.allCases) { mode in
+                            GlassPill(
+                                label: mode.rawValue,
+                                isSelected: viewModel.settings.whiteBalanceMode == mode
+                            ) {
+                                viewModel.setWhiteBalanceMode(mode)
+                            }
+                        }
+                    }
+                }
+                
+                if viewModel.settings.whiteBalanceMode == .manual {
+                    GlassSlider(
+                        label: "WB Temp",
+                        icon: "thermometer.medium",
+                        value: Binding(
+                            get: {
+                                WhiteBalanceValues.temperatureRange.normalize(
+                                    viewModel.settings.whiteBalance.temperature
+                                )
+                            },
+                            set: { sliderValue in
+                                let newTemperature = WhiteBalanceValues.temperatureRange.denormalize(sliderValue)
+                                viewModel.updateWhiteBalance(
+                                    temperature: newTemperature,
+                                    tint: viewModel.settings.whiteBalance.tint
+                                )
+                            }
+                        ),
+                        displayValue: "\(Int(viewModel.settings.whiteBalance.temperature))K",
+                        isEnabled: true
+                    )
+                    
+                    GlassSlider(
+                        label: "WB Tint",
+                        icon: "paintpalette",
+                        value: Binding(
+                            get: {
+                                WhiteBalanceValues.tintRange.normalize(
+                                    viewModel.settings.whiteBalance.tint
+                                )
+                            },
+                            set: { sliderValue in
+                                let newTint = WhiteBalanceValues.tintRange.denormalize(sliderValue)
+                                viewModel.updateWhiteBalance(
+                                    temperature: viewModel.settings.whiteBalance.temperature,
+                                    tint: newTint
+                                )
+                            }
+                        ),
+                        displayValue: viewModel.settings.whiteBalance.tint.formatted(decimals: 0),
+                        isEnabled: true
+                    )
+                }
             }
         }
     }

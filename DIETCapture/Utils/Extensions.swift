@@ -103,6 +103,29 @@ extension Double {
     }
 }
 
+// MARK: - Float Range Mapping
+
+extension ClosedRange where Bound == Float {
+    func clamp(_ value: Float) -> Float {
+        max(lowerBound, min(value, upperBound))
+    }
+    
+    func normalize(_ value: Float) -> Float {
+        let span = upperBound - lowerBound
+        guard span > 0 else {
+            // Degenerate range: there is only one valid value.
+            return 0
+        }
+        let normalized = (value - lowerBound) / span
+        return max(0, min(normalized, 1))
+    }
+    
+    func denormalize(_ value: Float) -> Float {
+        let clamped = (0...1).clamp(value)
+        return lowerBound + clamped * (upperBound - lowerBound)
+    }
+}
+
 // MARK: - Color
 
 import SwiftUI
