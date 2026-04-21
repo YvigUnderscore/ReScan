@@ -500,17 +500,21 @@ struct CoverageMapOverlayView: View {
         size: CGSize,
         bounds: (minX: Float, maxX: Float, minY: Float, maxY: Float)
     ) {
-        let gridSize = max(meshSurfaceMinimumGridSize, Int(CGFloat(density.heatmapGridSize) * meshSurfaceGridScale))
+        let scaledGridSize = Int(Double(density.heatmapGridSize) * Double(meshSurfaceGridScale))
+        let gridSize = max(meshSurfaceMinimumGridSize, scaledGridSize)
         let spanX = max(minimumAxisSpan, bounds.maxX - bounds.minX)
         let spanY = max(minimumAxisSpan, bounds.maxY - bounds.minY)
         let cellW = size.width / CGFloat(gridSize)
         let cellH = size.height / CGFloat(gridSize)
+        let cornerRadius = min(cellW, cellH) * meshSurfaceCellCornerRadiusRatio
         var counts = Array(repeating: 0, count: gridSize * gridSize)
         var maxCount = 1
 
         for point in meshPoints {
             let normalizedX = (point.x - bounds.minX) / spanX
             let normalizedY = (point.y - bounds.minY) / spanY
+            // Clamp due to ARKit pose jitter at bounds edges that can otherwise
+            // create out-of-range indices when mapping into grid cells.
             let clampedX = max(0, min(gridNormalizationUpperBound, normalizedX))
             let clampedY = max(0, min(gridNormalizationUpperBound, normalizedY))
             let x = Int(clampedX * Float(gridSize))
@@ -534,7 +538,7 @@ struct CoverageMapOverlayView: View {
                     height: cellH
                 )
                 context.fill(
-                    Path(roundedRect: rect, cornerRadius: min(cellW, cellH) * meshSurfaceCellCornerRadiusRatio),
+                    Path(roundedRect: rect, cornerRadius: cornerRadius),
                     with: .color(Color.cyan.opacity(meshSurfaceMinimumOpacity + (meshSurfaceOpacityRange * intensity)))
                 )
             }
