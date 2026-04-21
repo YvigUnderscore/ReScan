@@ -392,6 +392,8 @@ struct CoverageMapOverlayView: View {
     // Prevents divide-by-zero when bounds collapse (all points identical),
     // and avoids extreme scale spikes for near-zero extents.
     private let minimumAxisSpan: Float = 0.001
+    private let heatmapMinimumOpacity: Double = 0.12
+    private let heatmapOpacityRange: Double = 0.78
     
     let trajectory: [SIMD2<Float>]
     let meshPoints: [SIMD2<Float>]
@@ -460,13 +462,7 @@ struct CoverageMapOverlayView: View {
         let allPoints = trajectory + meshPoints + (currentPoint.map { [$0] } ?? [])
         guard !allPoints.isEmpty else { return }
 
-        let gridSize: Int
-        switch density {
-        case .low: gridSize = 12
-        case .medium: gridSize = 18
-        case .high: gridSize = 26
-        case .ultra: gridSize = 34
-        }
+        let gridSize = density.heatmapGridSize
 
         let spanX = max(minimumAxisSpan, bounds.maxX - bounds.minX)
         let spanY = max(minimumAxisSpan, bounds.maxY - bounds.minY)
@@ -498,7 +494,7 @@ struct CoverageMapOverlayView: View {
             )
             context.fill(
                 Path(rect),
-                with: .color(Color.cyan.opacity(0.12 + (0.78 * intensity)))
+                with: .color(Color.cyan.opacity(heatmapMinimumOpacity + (heatmapOpacityRange * intensity)))
             )
         }
     }

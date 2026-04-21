@@ -6,7 +6,6 @@
 import Foundation
 import ARKit
 import Combine
-import AVFoundation
 
 @Observable
 final class ARSessionService: NSObject {
@@ -119,19 +118,9 @@ final class ARSessionService: NSObject {
     }
 
     private func disableVideoStabilizationIfSupported(_ config: ARWorldTrackingConfiguration) {
-        let preferredModeSelector = NSSelectorFromString("setPreferredVideoStabilizationMode:")
-        if config.responds(to: preferredModeSelector) {
-            config.setValue(AVCaptureVideoStabilizationMode.off.rawValue, forKey: "preferredVideoStabilizationMode")
-            print("[ARSessionService] preferredVideoStabilizationMode set to off")
-            return
-        }
-
-        let stabilizationEnabledSelector = NSSelectorFromString("setVideoStabilizationEnabled:")
-        if config.responds(to: stabilizationEnabledSelector) {
-            config.setValue(false, forKey: "videoStabilizationEnabled")
+        if #available(iOS 17.0, *) {
+            config.videoStabilizationEnabled = false
             print("[ARSessionService] video stabilization disabled")
-        } else {
-            print("[ARSessionService] No stabilization API available on this iOS version")
         }
     }
     

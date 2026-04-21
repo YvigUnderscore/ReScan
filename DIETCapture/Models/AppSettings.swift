@@ -148,6 +148,15 @@ final class AppSettings: ObservableObject {
             case .ultra: return 1.8
             }
         }
+
+        var heatmapGridSize: Int {
+            switch self {
+            case .low: return 12
+            case .medium: return 18
+            case .high: return 26
+            case .ultra: return 34
+            }
+        }
     }
 
     enum CoverageMapMode: String, CaseIterable, Identifiable {
