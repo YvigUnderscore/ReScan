@@ -336,7 +336,8 @@ struct ViewfinderView: View {
         let current = SIMD2<Float>(translation.x, translation.z)
         
         if let last = coveragePathPoints.last {
-            // Minimum movement in meters before appending a new path point (reduces jitter/noise).
+            // Require ~3 cm movement before appending, which filters AR pose jitter
+            // while preserving enough path detail for a usable live coverage map.
             let minStep: Float = 0.03
             if simd_distance(last, current) >= minStep {
                 coveragePathPoints.append(current)
@@ -345,7 +346,8 @@ struct ViewfinderView: View {
             coveragePathPoints.append(current)
         }
         
-        // Keep the trajectory buffer bounded to avoid unbounded memory growth on long captures.
+        // Cap to ~40 seconds of trajectory at a 30 Hz refresh cadence to keep memory
+        // bounded while still showing recent coverage context during capture.
         let maxPathPoints = 1_200
         if coveragePathPoints.count > maxPathPoints {
             coveragePathPoints.removeFirst(coveragePathPoints.count - maxPathPoints)
