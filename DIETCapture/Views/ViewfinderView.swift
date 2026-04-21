@@ -396,6 +396,8 @@ struct CoverageMapOverlayView: View {
     private let heatmapOpacityRange: Double = 0.78
     private let meshSurfaceMinimumOpacity: Double = 0.2
     private let meshSurfaceOpacityRange: Double = 0.55
+    private let meshSurfaceGridScale: CGFloat = 0.75
+    private let meshSurfaceCellCornerRadiusRatio: CGFloat = 0.22
     
     let trajectory: [SIMD2<Float>]
     let meshPoints: [SIMD2<Float>]
@@ -496,7 +498,7 @@ struct CoverageMapOverlayView: View {
         size: CGSize,
         bounds: (minX: Float, maxX: Float, minY: Float, maxY: Float)
     ) {
-        let gridSize = max(8, Int(CGFloat(density.heatmapGridSize) * 0.75))
+        let gridSize = max(8, Int(CGFloat(density.heatmapGridSize) * meshSurfaceGridScale))
         let spanX = max(minimumAxisSpan, bounds.maxX - bounds.minX)
         let spanY = max(minimumAxisSpan, bounds.maxY - bounds.minY)
         let cellW = size.width / CGFloat(gridSize)
@@ -529,7 +531,7 @@ struct CoverageMapOverlayView: View {
                     height: cellH
                 )
                 context.fill(
-                    Path(roundedRect: rect, cornerRadius: min(cellW, cellH) * 0.22),
+                    Path(roundedRect: rect, cornerRadius: min(cellW, cellH) * meshSurfaceCellCornerRadiusRatio),
                     with: .color(Color.cyan.opacity(meshSurfaceMinimumOpacity + (meshSurfaceOpacityRange * intensity)))
                 )
             }
