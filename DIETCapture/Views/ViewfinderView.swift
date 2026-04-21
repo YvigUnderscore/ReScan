@@ -394,6 +394,7 @@ struct CoverageMapOverlayView: View {
     private let minimumAxisSpan: Float = 0.001
     private let heatmapMinimumOpacity: Double = 0.12
     private let heatmapOpacityRange: Double = 0.78
+    // Keep mesh surface below full opacity so trajectory/current marker remain readable.
     private let meshSurfaceMinimumOpacity: Double = 0.2
     private let meshSurfaceOpacityRange: Double = 0.55
     private let meshSurfaceGridScale: CGFloat = 0.75
@@ -539,9 +540,10 @@ struct CoverageMapOverlayView: View {
                     width: cellW,
                     height: cellH
                 )
+                let opacity = meshSurfaceOpacity(for: intensity)
                 context.fill(
                     Path(roundedRect: rect, cornerRadius: cornerRadius),
-                    with: .color(Color.cyan.opacity(meshSurfaceMinimumOpacity + (meshSurfaceOpacityRange * intensity)))
+                    with: .color(Color.cyan.opacity(opacity))
                 )
             }
         }
@@ -549,6 +551,10 @@ struct CoverageMapOverlayView: View {
 
     private func clampToGrid(_ value: Float) -> Float {
         max(0, min(gridNormalizationUpperBound, value))
+    }
+
+    private func meshSurfaceOpacity(for intensity: CGFloat) -> Double {
+        meshSurfaceMinimumOpacity + (meshSurfaceOpacityRange * intensity)
     }
     
     private func mapBounds(
