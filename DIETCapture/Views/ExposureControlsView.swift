@@ -223,16 +223,12 @@ struct ExposureControlsView: View {
                         icon: "thermometer.medium",
                         value: Binding(
                             get: {
-                                normalized(
-                                    viewModel.settings.whiteBalance.temperature,
-                                    in: WhiteBalanceValues.temperatureRange
+                                WhiteBalanceValues.temperatureRange.normalize(
+                                    viewModel.settings.whiteBalance.temperature
                                 )
                             },
                             set: { sliderValue in
-                                let newTemperature = denormalized(
-                                    sliderValue,
-                                    in: WhiteBalanceValues.temperatureRange
-                                )
+                                let newTemperature = WhiteBalanceValues.temperatureRange.denormalize(sliderValue)
                                 viewModel.updateWhiteBalance(
                                     temperature: newTemperature,
                                     tint: viewModel.settings.whiteBalance.tint
@@ -248,16 +244,12 @@ struct ExposureControlsView: View {
                         icon: "paintpalette",
                         value: Binding(
                             get: {
-                                normalized(
-                                    viewModel.settings.whiteBalance.tint,
-                                    in: WhiteBalanceValues.tintRange
+                                WhiteBalanceValues.tintRange.normalize(
+                                    viewModel.settings.whiteBalance.tint
                                 )
                             },
                             set: { sliderValue in
-                                let newTint = denormalized(
-                                    sliderValue,
-                                    in: WhiteBalanceValues.tintRange
-                                )
+                                let newTint = WhiteBalanceValues.tintRange.denormalize(sliderValue)
                                 viewModel.updateWhiteBalance(
                                     temperature: viewModel.settings.whiteBalance.temperature,
                                     tint: newTint
@@ -270,18 +262,6 @@ struct ExposureControlsView: View {
                 }
             }
         }
-    }
-    
-    private func normalized(_ value: Float, in range: ClosedRange<Float>) -> Float {
-        let span = range.upperBound - range.lowerBound
-        guard span > 0 else { return 0 }
-        let result = (value - range.lowerBound) / span
-        return max(0, min(result, 1))
-    }
-    
-    private func denormalized(_ value: Float, in range: ClosedRange<Float>) -> Float {
-        let clamped = max(0, min(value, 1))
-        return range.lowerBound + clamped * (range.upperBound - range.lowerBound)
     }
 }
 

@@ -101,7 +101,7 @@ final class CameraViewModel {
     
     func updateISO(sliderValue: Float) {
         isoSliderValue = max(0, min(sliderValue, 1))
-        let iso = denormalized(isoSliderValue, in: isoRange)
+        let iso = isoRange.denormalize(isoSliderValue)
         settings.iso = iso
         
         if settings.exposureMode == .manual {
@@ -114,7 +114,7 @@ final class CameraViewModel {
     
     func updateEV(sliderValue: Float) {
         evSliderValue = max(0, min(sliderValue, 1))
-        let ev = denormalized(evSliderValue, in: evRange)
+        let ev = evRange.denormalize(evSliderValue)
         settings.exposureCompensation = ev
         cameraService.setExposureCompensation(ev)
     }
@@ -167,21 +167,9 @@ final class CameraViewModel {
     }
     
     private func syncSliderValuesFromSettings() {
-        isoSliderValue = normalized(settings.iso, in: isoRange)
-        evSliderValue = normalized(settings.exposureCompensation, in: evRange)
+        isoSliderValue = isoRange.normalize(settings.iso)
+        evSliderValue = evRange.normalize(settings.exposureCompensation)
         focusSliderValue = max(0, min(settings.manualFocusPosition, 1))
-    }
-    
-    private func normalized(_ value: Float, in range: ClosedRange<Float>) -> Float {
-        let span = range.upperBound - range.lowerBound
-        guard span > 0 else { return 0 }
-        let normalized = (value - range.lowerBound) / span
-        return max(0, min(normalized, 1))
-    }
-    
-    private func denormalized(_ value: Float, in range: ClosedRange<Float>) -> Float {
-        let clamped = max(0, min(value, 1))
-        return range.lowerBound + clamped * (range.upperBound - range.lowerBound)
     }
 }
 
