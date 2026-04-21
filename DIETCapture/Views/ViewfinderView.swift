@@ -398,6 +398,8 @@ struct CoverageMapOverlayView: View {
     private let meshSurfaceOpacityRange: Double = 0.55
     private let meshSurfaceGridScale: CGFloat = 0.75
     private let meshSurfaceCellCornerRadiusRatio: CGFloat = 0.22
+    private let meshSurfaceMinimumGridSize: Int = 8
+    private let gridNormalizationUpperBound: Float = 0.999
     
     let trajectory: [SIMD2<Float>]
     let meshPoints: [SIMD2<Float>]
@@ -498,7 +500,7 @@ struct CoverageMapOverlayView: View {
         size: CGSize,
         bounds: (minX: Float, maxX: Float, minY: Float, maxY: Float)
     ) {
-        let gridSize = max(8, Int(CGFloat(density.heatmapGridSize) * meshSurfaceGridScale))
+        let gridSize = max(meshSurfaceMinimumGridSize, Int(CGFloat(density.heatmapGridSize) * meshSurfaceGridScale))
         let spanX = max(minimumAxisSpan, bounds.maxX - bounds.minX)
         let spanY = max(minimumAxisSpan, bounds.maxY - bounds.minY)
         let cellW = size.width / CGFloat(gridSize)
@@ -508,8 +510,8 @@ struct CoverageMapOverlayView: View {
         for point in meshPoints {
             let normalizedX = (point.x - bounds.minX) / spanX
             let normalizedY = (point.y - bounds.minY) / spanY
-            let clampedX = max(0, min(0.999, normalizedX))
-            let clampedY = max(0, min(0.999, normalizedY))
+            let clampedX = max(0, min(gridNormalizationUpperBound, normalizedX))
+            let clampedY = max(0, min(gridNormalizationUpperBound, normalizedY))
             let x = Int(clampedX * Float(gridSize))
             let y = Int(clampedY * Float(gridSize))
             let key = (y * gridSize) + x
