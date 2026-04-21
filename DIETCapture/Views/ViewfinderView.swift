@@ -7,6 +7,9 @@ import SwiftUI
 import simd
 
 struct ViewfinderView: View {
+    private let minPathStepDistance: Float = 0.03
+    private let maxTrajectoryPoints = 1_200
+    
     @Bindable var viewModel: CaptureViewModel
     
     // Shared CIContext for efficient rendering
@@ -339,8 +342,7 @@ struct ViewfinderView: View {
         if let last = coveragePathPoints.last {
             // Require ~3 cm movement before appending, which filters AR pose jitter
             // while preserving enough path detail for a usable live coverage map.
-            let minStep: Float = 0.03
-            if simd_distance(last, current) >= minStep {
+            if simd_distance(last, current) >= minPathStepDistance {
                 coveragePathPoints.append(current)
             }
         } else {
@@ -349,13 +351,16 @@ struct ViewfinderView: View {
         
         // Cap to ~40 seconds of trajectory at a 30 Hz refresh cadence to keep memory
         // bounded while still showing recent coverage context during capture.
-        let maxPathPoints = 1_200
-        if coveragePathPoints.count > maxPathPoints {
-            coveragePathPoints.removeFirst(coveragePathPoints.count - maxPathPoints)
+        if coveragePathPoints.count > maxTrajectoryPoints {
+            coveragePathPoints.removeFirst(coveragePathPoints.count - maxTrajectoryPoints)
         }
         
         let anchors = viewModel.lidar.meshAnchors
-        let newSignature = anchors.reduce(0) { $0 ^ $1.identifier.hashValue }
+        let newSignature = anchors
+            .map { $0.identifier.uuidString }
+            .sorted()
+            .joined(separator: "|")
+            .hashValue
         if newSignature != meshAnchorSignature || anchors.count != coverageMeshPoints.count {
             coverageMeshPoints = anchors.map { anchor in
                 let p = anchor.transform.columns.3
@@ -384,6 +389,8 @@ struct ViewfinderView: View {
 // MARK: - Depth Histogram Overlay
 
 struct CoverageMapOverlayView: View {
+    private let minMapSpan: Float = 0.001
+    
     let trajectory: [SIMD2<Float>]
     let meshPoints: [SIMD2<Float>]
     let currentPoint: SIMD2<Float>?
@@ -451,8 +458,8 @@ struct CoverageMapOverlayView: View {
         size: CGSize
     ) -> CGPoint {
         let padding: CGFloat = 8
-        let spanX = max(0.001, bounds.maxX - bounds.minX)
-        let spanY = max(0.001, bounds.maxY - bounds.minY)
+        let spanX = max(minMapSpan, bounds.maxX - bounds.minX)
+        let spanY = max(minMapSpan, bounds.maxY - bounds.minY)
         let scaleX = (size.width - 2 * padding) / CGFloat(spanX)
         let scaleY = (size.height - 2 * padding) / CGFloat(spanY)
         let scale = min(scaleX, scaleY)
