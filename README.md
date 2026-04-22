@@ -48,10 +48,11 @@ Please look for SideStore, it is much easier that my previous attempt --> https:
 ### Method 2: Build via Xcode (Mac / Developers)
 If you are on a Mac, you can easily deploy it using Xcode (Free Developer Account):
 1. **Clone the repository**: `git clone https://github.com/YvigUnderscore/ReScan.git`
-2. **Open**: `ReScan.xcodeproj`.
-3. **Configure Signing**: In the Project settings -> Target `ReScan` -> Signing & Capabilities, select your Personal Team and change the Bundle Identifier.
-4. **Deploy**: Connect your iPhone, hit **Cmd + R** to run.
-5. **Trust the Developer**: On your device, go to **Settings > General > VPN & Device Management**, tap your Apple ID and select "Trust".
+2. Generate `ReScan.xcodeproj`. (`brew install xcodegen` then `xcodegen generate`) thanks @NgVThangBz for the tip !
+3. **Open**: `ReScan.xcodeproj`.
+4. **Configure Signing**: In the Project settings -> Target `ReScan` -> Signing & Capabilities, select your Personal Team and change the Bundle Identifier.
+5. **Deploy**: Connect your iPhone, hit **Cmd + R** to run.
+6. **Trust the Developer**: On your device, go to **Settings > General > VPN & Device Management**, tap your Apple ID and select "Trust".
 
 *Note: With a free Apple Developer account, apps expire after 7 days and need to be re-deployed.*
 
